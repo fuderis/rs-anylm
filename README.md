@@ -21,7 +21,7 @@ I was too. That's why I built `AnyLM`: learn one intuitive API once, then unleas
 * **Embeddings**: Text embeddings support for fast text analysis.
 * **Image-View**: Image analysis support with reading from files and directly via `base64 url`.
 * **Proxy Support**: Support for using proxy/vpn request tunneling.
-* **Is something missing?**: Write to me and I will add it too. (`*Telegram*: [@fuderis](https://t.me/fuderis`).
+* **Is something missing?**: Write to me and I will add it too. (`Telegram`: [@fuderis](https://t.me/fuderis).
 
 ## Examples:
 
