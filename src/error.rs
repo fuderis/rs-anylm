@@ -12,8 +12,14 @@ pub enum Error {
     Io(std::io::Error),
 
     #[from]
-    ParseJson(serde_json::Error),
+    Json(serde_json::Error),
+
+    #[from]
+    Request(reqwest::Error),
 
     #[display = "Incorrect context - missing a new user request"]
     IncorrectContext,
+
+    #[display = "Encoded base64 string is invalid"]
+    InvalidBase64Url,
 }

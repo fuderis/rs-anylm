@@ -1,6 +1,14 @@
 use crate::prelude::*;
 use std::net::SocketAddr;
 
+pub const LMSTUDIO_HOST: &str = "http://localhost:1234";
+pub const OPENAI_HOST: &str = "https://api.openai.com";
+pub const CEREBRAS_HOST: &str = "https://api.cerebras.ai";
+pub const OPENROUTER_HOST: &str = "https://openrouter.ai/api";
+pub const PERPLEXITY_HOST: &str = "https://api.perplexity.ai";
+pub const ANTHROPIC_HOST: &str = "https://api.anthropic.com";
+pub const VOYAGE_HOST: &str = "https://api.voyageai.com";
+
 /// The AI API type
 #[derive(Clone, Debug, Display, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "lowercase")]
@@ -14,44 +22,58 @@ pub enum ApiKind {
     // ------- SPECIFIED SERVICES: ---------
     /// Local LM models (OpenAI compatible)
     LmStudio,
-    /// Anthropic models (Antropic compatible)
-    Claude,
+    /// Open AI models (OpenAI compatible)
+    ChatGpt,
     /// Cerebras models (OpenAI compatible)
     Cerebras,
     /// OpenRouter models (OpenAI compatible)
     OpenRouter,
-    /// Open AI models (OpenAI compatible)
-    ChatGpt,
     /// Perplexity models (OpenAI compatible)
     Perplexity,
+    /// Anthropic models (Antropic compatible)
+    Claude,
+    /// Embeddings models (instead Anthropic embeddings)
+    Voyage,
 }
 
 impl ApiKind {
+    /// Returns true is it's OpenAI API standart
+    pub fn is_openai_standart(&self) -> bool {
+        use ApiKind::*;
+        *self != Anthropic && *self != Claude
+    }
+
+    /// Returns true is it's Anthropic API standart
+    pub fn is_anthropic_standart(&self) -> bool {
+        use ApiKind::*;
+        *self == Anthropic || *self == Claude
+    }
+
     /// Returns LM API host
-    pub const fn host(&self) -> &'static str {
+    pub fn host(&self) -> &'static str {
         use ApiKind::*;
 
         match *self {
-            OpenAI | ChatGpt => "https://api.openai.com",
-            Anthropic | Claude => "https://api.anthropic.com",
-            LmStudio => "http://localhost:1234",
-            Cerebras => "https://api.cerebras.ai",
-            OpenRouter => "https://openrouter.ai/api",
-            Perplexity => "https://api.perplexity.ai",
+            OpenAI | ChatGpt => OPENAI_HOST,
+            Anthropic | Claude => ANTHROPIC_HOST,
+            LmStudio => LMSTUDIO_HOST,
+            Cerebras => CEREBRAS_HOST,
+            OpenRouter => OPENROUTER_HOST,
+            Perplexity => PERPLEXITY_HOST,
+            Voyage => VOYAGE_HOST,
         }
     }
 
     /// Returns completions path
-    pub const fn completions(&self) -> &'static str {
-        use ApiKind::*;
-
-        match *self {
-            Anthropic | Claude => "v1/messages",
-            _ => "v1/chat/completions",
+    pub fn completions(&self) -> &'static str {
+        if self.is_anthropic_standart() {
+            "v1/messages"
+        } else {
+            "v1/chat/completions"
         }
     }
     /// Returns embeddings path
-    pub const fn embeddings(&self) -> &'static str {
+    pub fn embeddings(&self) -> &'static str {
         "v1/embeddings"
     }
 
@@ -67,7 +89,7 @@ impl ApiKind {
     /// Returns completions URL
     pub fn custom_completions_url(&self, addr: impl Into<SocketAddr>, https: bool) -> String {
         fmt!(
-            "http{}{}/{}",
+            "http{}://{}/{}",
             if https { "s" } else { "" },
             addr.into(),
             self.completions()
@@ -76,7 +98,7 @@ impl ApiKind {
     /// Returns embeddings URL
     pub fn custom_embeddings_url(&self, addr: impl Into<SocketAddr>, https: bool) -> String {
         fmt!(
-            "http{}{}/{}",
+            "http{}://{}/{}",
             if https { "s" } else { "" },
             addr.into(),
             self.embeddings()
