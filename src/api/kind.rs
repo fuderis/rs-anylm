@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use std::net::SocketAddr;
 
 pub const LMSTUDIO_HOST: &str = "http://localhost:1234";
 pub const OPENAI_HOST: &str = "https://api.openai.com";
@@ -87,20 +86,18 @@ impl ApiKind {
     }
 
     /// Returns completions URL
-    pub fn custom_completions_url(&self, addr: impl Into<SocketAddr>, https: bool) -> String {
+    pub fn custom_completions_url(&self, url: &str) -> String {
         fmt!(
-            "http{}://{}/{}",
-            if https { "s" } else { "" },
-            addr.into(),
+            "{url}{}{}",
+            if url.ends_with("/") { "" } else { "/" },
             self.completions()
         )
     }
     /// Returns embeddings URL
-    pub fn custom_embeddings_url(&self, addr: impl Into<SocketAddr>, https: bool) -> String {
+    pub fn custom_embeddings_url(&self, url: &str) -> String {
         fmt!(
-            "http{}://{}/{}",
-            if https { "s" } else { "" },
-            addr.into(),
+            "{url}{}{}",
+            if url.ends_with("/") { "" } else { "/" },
             self.embeddings()
         )
     }

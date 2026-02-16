@@ -2,7 +2,6 @@ use super::*;
 use crate::prelude::*;
 use futures::StreamExt;
 use reqwest::{Client, Proxy, header};
-use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -28,18 +27,18 @@ pub struct Chunk {
 /// The LM API chat completions request
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Completions {
-    /// The API version
-    #[serde(skip)]
-    pub api_version: Option<String>,
     /// The API standart
     #[serde(skip)]
     pub api_kind: ApiKind,
+    /// The API version
+    #[serde(skip)]
+    pub api_version: Option<String>,
     /// The API authorization key
     #[serde(skip)]
     pub api_key: String,
     /// The custom server host
     #[serde(skip)]
-    pub server: Option<(SocketAddr, bool)>,
+    pub server: Option<String>,
     /// The proxy tunnel settings
     #[serde(skip)]
     pub proxy: Option<Proxy>,
@@ -62,21 +61,29 @@ impl Completions {
     /// Creates a new LM chat completions request
     pub fn new(kind: ApiKind, key: impl Into<String>, model: impl Into<String>) -> Self {
         Self {
-            api_version: if kind.is_anthropic_standart() {
-                Some(fmt!("2023-06-01"))
+            server: if kind == ApiKind::LmStudio {
+                Some(str!("http://127.0.0.1:1234"))
             } else {
                 None
             },
-            api_kind: kind,
+            api_version: if kind.is_anthropic_standart() {
+                Some(str!("2023-06-01"))
+            } else {
+                None
+            },
             api_key: key.into(),
-            server: None,
             proxy: None,
             timeout: Duration::from_secs(30),
             model: model.into(),
             messages: Vec::new(),
-            max_tokens: -1,
+            max_tokens: if kind.is_anthropic_standart() {
+                8096
+            } else {
+                -1
+            },
             temperature: 0.6,
             tokens_count: 0,
+            api_kind: kind,
         }
     }
 
@@ -96,22 +103,13 @@ impl Completions {
     }
 
     /// Creates a new Anthropic (Claude) request
-    pub fn anthropic(
-        key: impl Into<String>,
-        model: impl Into<String>,
-        version: Option<String>,
-    ) -> Self {
-        let this = Self::new(ApiKind::Anthropic, key, model);
-        if let Some(v) = version {
-            this.version(v)
-        } else {
-            this
-        }
+    pub fn anthropic(key: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::new(ApiKind::Anthropic, key, model)
     }
 
     /// Creates a new LM Studio request
-    pub fn lmstudio(port: u16, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::LmStudio, String::new(), model).server(([127, 0, 0, 1], port), false)
+    pub fn lmstudio(key: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::new(ApiKind::LmStudio, key, model)
     }
 
     /// Creates a new ChatGPT request
@@ -149,14 +147,14 @@ impl Completions {
         self.api_key = key.into();
     }
 
-    /// Sets the custom LM API server host
-    pub fn server(mut self, addr: impl Into<SocketAddr>, https: bool) -> Self {
-        self.server = Some((addr.into(), https));
+    /// Sets the custom LM API server URL host
+    pub fn server(mut self, url: impl Into<String>) -> Self {
+        self.server = Some(url.into());
         self
     }
-    /// Sets the custom LM API server host
-    pub fn set_server(&mut self, addr: impl Into<SocketAddr>, https: bool) {
-        self.server = Some((addr.into(), https));
+    /// Sets the custom LM API server URL host
+    pub fn set_server(&mut self, url: impl Into<String>) {
+        self.server = Some(url.into());
     }
 
     /// Sets a proxy tunnel settings
@@ -254,16 +252,11 @@ impl Completions {
         let is_anthropic_standart = !is_openai_standart;
 
         // generate URL:
-        let url = if let Some((host, https)) = self.server {
-            self.api_kind.custom_completions_url(host, https)
+        let url = if let Some(url) = &self.server {
+            self.api_kind.custom_completions_url(url)
         } else {
             self.api_kind.completions_url()
         };
-
-        // add tokens limit:
-        if self.max_tokens <= 0 && is_anthropic_standart {
-            self.max_tokens = 8096;
-        }
 
         // remove extra context:
         if self.max_tokens > 0 {
@@ -335,8 +328,6 @@ impl Completions {
                 self.api_version.take().unwrap_or(str!("2023-06-01")),
             );
         }
-
-        //dbg!(&request);
 
         // send request:
         let response = request.send().await?;

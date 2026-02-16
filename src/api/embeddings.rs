@@ -1,7 +1,6 @@
 use super::ApiKind;
 use crate::prelude::*;
 use reqwest::{Client, Proxy, header};
-use std::net::SocketAddr;
 use std::time::Duration;
 
 /// The embeddings usage info
@@ -30,17 +29,27 @@ pub struct Embedding {
 /// The LM API embeddings request
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Embeddings {
+    /// The API version
+    #[serde(skip)]
+    pub api_version: Option<String>,
+    /// The API standart
     #[serde(skip)]
     pub api_kind: ApiKind,
+    /// The API authorization key
     #[serde(skip)]
     pub api_key: String,
+    /// The custom server host
     #[serde(skip)]
-    pub server: Option<(SocketAddr, bool)>,
+    pub server: Option<String>,
+    /// The proxy tunnel settings
     #[serde(skip)]
-    proxy: Option<Proxy>,
+    pub proxy: Option<Proxy>,
+    /// The connection timeout
     #[serde(skip)]
-    timeout: Duration,
+    pub timeout: Duration,
+    /// The AI model name
     pub model: String,
+    /// The input texts
     pub input: Vec<String>,
 }
 
@@ -48,9 +57,18 @@ impl Embeddings {
     /// Creates a new LM embeddings request
     pub fn new(kind: ApiKind, key: impl Into<String>, model: impl Into<String>) -> Self {
         Self {
+            server: if kind == ApiKind::LmStudio {
+                Some(str!("http://127.0.0.1:1234"))
+            } else {
+                None
+            },
+            api_version: if kind.is_anthropic_standart() {
+                Some(str!("2023-06-01"))
+            } else {
+                None
+            },
             api_kind: kind,
             api_key: key.into(),
-            server: None,
             proxy: None,
             timeout: Duration::from_secs(30),
             model: model.into(),
@@ -69,8 +87,8 @@ impl Embeddings {
     }
 
     /// Creates a new LM Studio embeddings request
-    pub fn lmstudio(port: u16, model: impl Into<String>) -> Self {
-        Self::new(ApiKind::LmStudio, String::new(), model).server(([127, 0, 0, 1], port), false)
+    pub fn lmstudio(key: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::new(ApiKind::LmStudio, key, model)
     }
 
     /// Creates a new ChatGPT embeddings request
@@ -113,14 +131,14 @@ impl Embeddings {
         self.api_key = key.into();
     }
 
-    /// Sets the custom LM API server host
-    pub fn server(mut self, addr: impl Into<SocketAddr>, https: bool) -> Self {
-        self.server = Some((addr.into(), https));
+    /// Sets the custom LM API server URL host
+    pub fn server(mut self, url: impl Into<String>) -> Self {
+        self.server = Some(url.into());
         self
     }
-    /// Sets the custom LM API server host
-    pub fn set_server(&mut self, addr: impl Into<SocketAddr>, https: bool) {
-        self.server = Some((addr.into(), https));
+    /// Sets the custom LM API server URL host
+    pub fn set_server(&mut self, url: impl Into<String>) {
+        self.server = Some(url.into());
     }
 
     /// Sets a proxy tunnel settings
@@ -167,8 +185,8 @@ impl Embeddings {
     /// Sends the request to LM server
     pub async fn send(&mut self) -> Result<Embedded> {
         // generate URL:
-        let url = if let Some((host, https)) = self.server {
-            self.api_kind.custom_embeddings_url(host, https)
+        let url = if let Some(url) = &self.server {
+            self.api_kind.custom_embeddings_url(url)
         } else {
             self.api_kind.embeddings_url()
         };

@@ -3,7 +3,7 @@ use anylm::{Embeddings, prelude::*};
 #[tokio::main]
 async fn main() -> Result<()> {
     // send request:
-    let response = Embeddings::lmstudio(1234, "nomic-ai/nomic-embed-text-v1.5")
+    let response = Embeddings::lmstudio("", "nomic-ai/nomic-embed-text-v1.5")
         .input("Hello, how are you doing?")
         .send()
         .await?;

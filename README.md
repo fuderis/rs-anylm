@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
     let api_key = std::env::var("ANTHROPIC_API_KEY")?;
 
     // send request:
-    let mut response = Completions::claude(api_key, "claude-opus-4-6", None)
+    let mut response = Completions::claude(api_key, "claude-opus-4-6")
         //.proxy(reqwest::Proxy::all("socks5://127.0.0.1:1080")?)
         .user_message(vec!["Hello, how are you doing?".into()])
         .send()
@@ -88,7 +88,8 @@ use anylm::{Chunk, Completions, prelude::*};
 #[tokio::main]
 async fn main() -> Result<()> {
     // send request:
-    let mut response = Completions::lmstudio(1234, "qwen/qwen3-vl-4b")
+    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
+        .server("http://localhost:1234")
         .user_message(vec![
             Path::new("test-image.png").into(),
             "What's on the picture?".into(),
@@ -116,7 +117,7 @@ use anylm::{Embeddings, prelude::*};
 #[tokio::main]
 async fn main() -> Result<()> {
     // send request:
-    let response = Embeddings::lmstudio(1234, "nomic-ai/nomic-embed-text-v1.5")
+    let response = Embeddings::lmstudio("", "nomic-ai/nomic-embed-text-v1.5")
         .input("Hello, how are you doing?")
         .send()
         .await?;

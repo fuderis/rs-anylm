@@ -3,7 +3,8 @@ use anylm::{Chunk, Completions, prelude::*};
 #[tokio::main]
 async fn main() -> Result<()> {
     // send request:
-    let mut response = Completions::lmstudio(1234, "qwen2.5-coder-3b-instruct")
+    let mut response = Completions::lmstudio("", "qwen2.5-coder-3b-instruct")
+        .server("http://localhost:1234")
         .user_message(vec!["Hello, how are you doing?".into()])
         .send()
         .await?;
