@@ -249,7 +249,6 @@ impl Completions {
     /// Sends the request to LM server
     pub async fn send(&mut self) -> Result<Stream> {
         let is_openai_standart = self.api_kind.is_openai_standart();
-        let is_anthropic_standart = !is_openai_standart;
 
         // generate URL:
         let url = if let Some(url) = &self.server {
