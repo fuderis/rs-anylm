@@ -26,8 +26,9 @@ async fn main() -> Result<()> {
     // read response stream:
     let mut json_str = String::new();
     while let Some(chunk) = response.next().await {
-        let Chunk { text } = chunk?;
-        json_str.push_str(&text);
+        if let Chunk::Text(text) = chunk? {
+            json_str.push_str(&text);
+        }
     }
 
     // parse response as JSON:

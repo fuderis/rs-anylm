@@ -13,10 +13,9 @@ async fn main() -> Result<()> {
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        match chunk {
-            Ok(Chunk { text }) => eprint!("{text}"),
-            Err(e) => eprintln!("\n{e}"),
-        };
+        if let Chunk::Text(text) = chunk? {
+            eprint!("{text}");
+        }
     }
     println!();
 

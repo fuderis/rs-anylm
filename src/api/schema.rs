@@ -48,6 +48,9 @@ pub struct Schema {
     /// The required object properties
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub required: Vec<String>,
+    #[serde(rename = "additionalProperties")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_properties: Option<bool>,
 }
 
 impl Schema {
@@ -59,6 +62,7 @@ impl Schema {
                 s if !s.is_empty() => Some(s),
                 _ => None,
             },
+            additional_properties: Some(false),
             ..Default::default()
         }
     }

@@ -11,7 +11,7 @@ pub struct Usage {
 
 /// The embeddings response
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Embedded {
+pub struct EmbeddingsData {
     pub object: String,
     pub data: Vec<Embedding>,
     pub model: String,
@@ -183,7 +183,7 @@ impl Embeddings {
     }
 
     /// Sends the request to LM server
-    pub async fn send(&mut self) -> Result<Embedded> {
+    pub async fn send(&mut self) -> Result<EmbeddingsData> {
         // generate URL:
         let url = if let Some(url) = &self.server {
             self.api_kind.custom_embeddings_url(url)
@@ -214,7 +214,7 @@ impl Embeddings {
             .send()
             .await?
             .error_for_status()?
-            .json::<Embedded>()
+            .json::<EmbeddingsData>()
             .await
             .map_err(Error::from)?;
 

@@ -18,9 +18,10 @@ I was too. That's why I built `AnyLM`: learn one intuitive API once, then unleas
 * **Services**: `LM Studio`, `ChatGPT`, `Cerebras`, `OpenRouter`, `Perplexity`, `Claude` and `Voyage`.
 * **Stream Response**: Allows you to read the LM response in parts without waiting for the full completion.
 * **Context Control**: Automatic trimming of the dialog context when exceeding the token limits.
-* **Embeddings**: Text embeddings support for fast text analysis.
 * **Image View**: Image analysis support with reading from files and directly via `base64 url`.
-* **Structured Response**: Structured AI-output in JSON format.
+* **Structured Output**: Structured AI-response in JSON format.
+* **Tool Calls**: Calling handlers with arguments for smart AI agents.
+* **Embeddings**: Text embeddings support for fast text analysis.
 * **Proxy Support**: Support for using proxy/vpn request tunneling.
 * **Is something missing?**: Write to me and I will add it too. (`Telegram`: [@fuderis](https://t.me/fuderis)).
 
@@ -43,10 +44,9 @@ async fn main() -> Result<()> {
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        match chunk {
-            Ok(Chunk { text }) => eprint!("{text}"),
-            Err(e) => eprintln!("\n{e}"),
-        };
+        if let Chunk::Text(text) = chunk? {
+            eprint!("{text}");
+        }
     }
     println!();
 
@@ -71,10 +71,9 @@ async fn main() -> Result<()> {
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        match chunk {
-            Ok(Chunk { text }) => eprint!("{text}"),
-            Err(e) => eprintln!("\n{e}"),
-        };
+        if let Chunk::Text(text) = chunk? {
+            eprint!("{text}");
+        }
     }
     println!();
 
@@ -100,10 +99,9 @@ async fn main() -> Result<()> {
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        match chunk {
-            Ok(Chunk { text }) => eprint!("{text}"),
-            Err(e) => eprintln!("\n{e}"),
-        };
+        if let Chunk::Text(text) = chunk? {
+            eprint!("{text}");
+        }
     }
     println!();
 
@@ -111,26 +109,7 @@ async fn main() -> Result<()> {
 }
 ```
 
-### Embeddings:
-```rust
-use anylm::{Embeddings, prelude::*};
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    // send request:
-    let response = Embeddings::lmstudio("", "nomic-ai/nomic-embed-text-v1.5")
-        .input("Hello, how are you doing?")
-        .send()
-        .await?;
-
-    // print response:
-    dbg!(response);
-
-    Ok(())
-}
-```
-
-### Structured JSON-response:
+### Structured Output (JSON):
 ```rust
 use anylm::{Chunk, Completions, Schema, prelude::*};
 
@@ -159,13 +138,88 @@ async fn main() -> Result<()> {
     // read response stream:
     let mut json_str = String::new();
     while let Some(chunk) = response.next().await {
-        let Chunk { text } = chunk?;
-        json_str.push_str(&text);
+        if let Chunk::Text(text) = chunk? {
+            json_str.push_str(&text);
+        }
     }
 
     // parse response as JSON:
     let person: Person = serde_json::from_str(&json_str)?;
     println!("{person:#?}");
+
+    Ok(())
+}
+```
+
+### Tool Calls:
+```rust
+use anylm::{Chunk, Completions, Schema, Tool, prelude::*};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    /// The weather tool data
+    #[allow(dead_code)]
+    #[derive(Debug, serde::Deserialize)]
+    struct LocationData {
+        location: String,
+    }
+
+    // send request:
+    let mut response = Completions::lmstudio("", "mistralai/ministral-3-3b")
+        .user_message(vec!["What's the weather like in London?".into()])
+        .tool(Tool::new(
+            "weather",
+            "Search weather by location",
+            Schema::object("Location data")
+                .required_property("location", Schema::string("The location")),
+        ))
+        .send()
+        .await?;
+
+    // read response stream:
+    let mut tool_calls = vec![];
+    while let Some(chunk) = response.next().await {
+        match chunk {
+            Ok(Chunk::Text(text)) => {
+                eprint!("{text}");
+            }
+            Ok(Chunk::Tool(name, json_str)) => {
+                tool_calls.push((name, json_str));
+            }
+            _ => {}
+        }
+    }
+    println!();
+
+    // handle tool calls:
+    for (name, json_str) in tool_calls {
+        match name.as_ref() {
+            "weather" => {
+                let location: LocationData = serde_json::from_str(&json_str)?;
+                println!("{location:#?}");
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+```
+
+### Embeddings:
+```rust
+use anylm::{Embeddings, prelude::*};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // send request:
+    let response = Embeddings::lmstudio("", "nomic-ai/nomic-embed-text-v1.5")
+        .input("Hello, how are you doing?")
+        .send()
+        .await?;
+
+    // print response:
+    println!("Embeddings: {:?}", embeddings.data);
 
     Ok(())
 }

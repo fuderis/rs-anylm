@@ -12,8 +12,10 @@ async fn main() -> Result<()> {
         .await?;
 
     // read response stream:
-    while let Some(Ok(Chunk { text })) = response.next().await {
-        eprint!("{text}");
+    while let Some(chunk) = response.next().await {
+        if let Chunk::Text(text) = chunk? {
+            eprint!("{text}");
+        }
     }
     println!();
 

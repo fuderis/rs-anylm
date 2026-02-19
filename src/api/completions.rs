@@ -20,8 +20,9 @@ impl Stream {
 
 /// The completions response chunk
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Chunk {
-    pub text: String,
+pub enum Chunk {
+    Text(String),
+    Tool(String, String),
 }
 
 /// The LM API chat completions request
@@ -56,6 +57,9 @@ pub struct Completions {
     /// The response schema
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<Schema>,
+    /// The tool calls
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<Tool>,
     /// The summary tokens count
     pub tokens_count: usize,
 }
@@ -87,6 +91,7 @@ impl Completions {
             temperature: 0.7,
             tokens_count: 0,
             schema: None,
+            tools: Vec::new(),
             api_kind: kind,
         }
     }
@@ -280,6 +285,26 @@ impl Completions {
         self.schema.replace(schema);
     }
 
+    /// Adds the tool calls
+    pub fn tools(mut self, tools: Vec<Tool>) -> Self {
+        self.tools.extend(tools);
+        self
+    }
+    /// Adds the tool calls
+    pub fn set_tools(&mut self, tools: Vec<Tool>) {
+        self.tools.extend(tools);
+    }
+
+    /// Adds the tool call
+    pub fn tool(mut self, tool: Tool) -> Self {
+        self.tools.push(tool);
+        self
+    }
+    /// Adds the tool call
+    pub fn set_tool(&mut self, tool: Tool) {
+        self.tools.push(tool);
+    }
+
     /// Sends the request to LM server
     pub async fn send(&mut self) -> Result<Stream> {
         let is_openai_standart = self.api_kind.is_openai_standart();
@@ -333,30 +358,62 @@ impl Completions {
         }
         data.insert(str!("stream"), JsonValue::Bool(true));
 
-        // set JSON-schema:
+        // set output JSON-schema:
         if let Some(schema) = self.schema.take() {
+            data.remove("schema");
+
+            // open ai:
             if is_openai_standart {
                 data.insert(
                     str!("response_format"),
                     json!({
                         "type": "json_schema",
                         "json_schema": {
-                            "schema": schema
+                            "schema": schema,
+                            "strict": true
                         }
                     }),
                 );
-            } else {
+            }
+            // anthropic:
+            else {
                 data.insert(
-                    str!("tools"),
-                    json!([{
-                        "name": "response_format",
-                        "description": "Generate structured JSON response",
-                        "input_schema": schema
-                    }]),
+                    str!("output_config"),
+                    json!({
+                        "format": {
+                            "type": "json_schema",
+                            "schema": schema,
+                        }
+                    }),
                 );
             }
+        }
 
-            data.remove("schema");
+        // set tool calls:
+        if !self.tools.is_empty() {
+            let mut tools_json = vec![];
+
+            for tool in &self.tools {
+                // open ai:
+                if is_openai_standart {
+                    tools_json.push(json!({
+                        "type": "function",
+                        "function": tool
+                    }));
+                }
+                // anthropic:
+                else {
+                    let mut tool_json = json::to_value(tool).unwrap();
+                    let tool_obj = tool_json.as_object_mut().unwrap();
+                    let params = tool_obj.get_mut("parameters").cloned().unwrap();
+
+                    tool_obj.remove("parameters");
+                    tool_obj.insert("input_schema".to_string(), params);
+                    tools_json.push(tool_json);
+                }
+            }
+
+            data.insert(str!("tools"), JsonValue::Array(tools_json));
         }
 
         // create client:
@@ -376,11 +433,11 @@ impl Completions {
             .header(header::ACCEPT, "text/event-stream")
             .json(&data);
 
-        // OpenAI, LM Studio, OpenRouter, etc
+        // open ai:
         if is_openai_standart {
             request = request.header(header::AUTHORIZATION, fmt!("Bearer {}", self.api_key));
         }
-        // Anthropic, Claude
+        // anthropic:
         else {
             request = request.header("x-api-key", &self.api_key);
             request = request.header(
@@ -397,6 +454,7 @@ impl Completions {
         tokio::spawn(async move {
             let mut buffer = String::new();
             let mut stream = response.bytes_stream();
+            let mut tool_buffers = HashMap::<usize, (String, String)>::new();
 
             // read chunks:
             while let Some(chunk) = stream.next().await {
@@ -451,24 +509,41 @@ impl Completions {
 
                                 // OpenAI API standart:
                                 if is_openai_standart {
-                                    /// The AI response chunk
                                     #[derive(Debug, Deserialize)]
                                     struct OpenAIChunk {
-                                        pub choices: Vec<OpenAIChoice>,
+                                        choices: Vec<OpenAIChoice>,
                                     }
-
-                                    /// The AI response choise
                                     #[allow(dead_code)]
                                     #[derive(Debug, Deserialize)]
                                     struct OpenAIChoice {
-                                        pub delta: OpenAIDelta,
+                                        delta: OpenAIDelta,
+                                        #[serde(default)]
+                                        finish_reason: Option<String>,
                                     }
-
-                                    /// The AI response delta content
                                     #[derive(Debug, Deserialize)]
                                     struct OpenAIDelta {
                                         #[serde(default)]
-                                        pub content: Option<String>,
+                                        content: Option<String>,
+                                        #[serde(default)]
+                                        tool_calls: Option<Vec<ToolCallDelta>>,
+                                    }
+
+                                    #[derive(Debug, Deserialize, Default)]
+                                    struct ToolCallDelta {
+                                        #[serde(rename = "type")]
+                                        _kind: Option<String>,
+                                        #[serde(default)]
+                                        index: Option<usize>,
+                                        #[serde(default)]
+                                        function: Option<FunctionDelta>,
+                                    }
+                                    #[allow(dead_code)]
+                                    #[derive(Debug, Deserialize, Default)]
+                                    struct FunctionDelta {
+                                        #[serde(default)]
+                                        name: Option<String>,
+                                        #[serde(default)]
+                                        arguments: Option<String>,
                                     }
 
                                     // parse chunk:
@@ -477,40 +552,135 @@ impl Completions {
                                             .map_err(Error::from)
                                     {
                                         for choice in choices {
+                                            // text:
                                             if let Some(content) = choice.delta.content {
                                                 text.push_str(&content);
                                             }
+
+                                            // tool calls:
+                                            if let Some(tool_calls) = choice.delta.tool_calls {
+                                                for tool_call in tool_calls {
+                                                    if let (Some(index), Some(function)) =
+                                                        (tool_call.index, tool_call.function)
+                                                    {
+                                                        let tool =
+                                                            tool_buffers.entry(index).or_default();
+
+                                                        if let Some(name) = function.name {
+                                                            tool.0 = name;
+                                                        }
+                                                        if let Some(arguments) = &function.arguments
+                                                        {
+                                                            tool.1.push_str(arguments);
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // send tool calls to receiver:
+                                            tool_buffers.retain(|_index, (name, args)| {
+                                                if json::from_str::<JsonValue>(&args).is_ok() {
+                                                    tx.send(Ok(Chunk::Tool(
+                                                        name.clone(),
+                                                        args.clone(),
+                                                    )))
+                                                    .ok();
+                                                    false
+                                                } else {
+                                                    true
+                                                }
+                                            })
                                         }
                                     }
                                 }
                                 // Anthropic API standart:
                                 else {
                                     #[derive(Debug, Deserialize)]
-                                    struct AnthropicChunk {
-                                        r#type: String,
-                                        delta: AnthropicDelta,
+                                    struct AnthropicEvent {
+                                        #[serde(rename = "type")]
+                                        kind: String,
+                                        #[serde(default)]
+                                        index: Option<usize>,
+                                        delta: Option<AnthropicDelta>,
+                                        content_block: Option<ContentBlock>,
                                     }
+
                                     #[derive(Debug, Deserialize)]
                                     struct AnthropicDelta {
+                                        #[serde(rename = "type")]
+                                        kind: String,
                                         text: Option<String>,
+                                        #[serde(rename = "partial_json")]
                                         partial_json: Option<String>,
                                     }
 
-                                    // parse chunk:
-                                    if let Ok(AnthropicChunk { r#type, delta }) =
-                                        json::from_str::<AnthropicChunk>(json_data)
-                                        && r#type == "content_block_delta"
-                                    {
-                                        if let Some(content) = delta.text {
-                                            text.push_str(&content);
-                                        } else if let Some(content) = delta.partial_json {
-                                            text.push_str(&content);
+                                    #[derive(Debug, Deserialize)]
+                                    struct ContentBlock {
+                                        #[serde(rename = "type")]
+                                        kind: String,
+                                        name: String,
+                                    }
+
+                                    // parsing event:
+                                    if let Ok(event) = json::from_str::<AnthropicEvent>(json_data) {
+                                        match event.kind.as_str() {
+                                            "content_block_delta" => {
+                                                let index = event.index.unwrap_or(0);
+                                                let tool = tool_buffers.entry(index).or_default();
+
+                                                if let Some(delta) = event.delta {
+                                                    match delta.kind.as_str() {
+                                                        "text_delta" => {
+                                                            if let Some(content) = delta.text {
+                                                                text.push_str(&content);
+                                                            }
+                                                        }
+                                                        "input_json_delta" => {
+                                                            if let Some(partial_json) =
+                                                                delta.partial_json
+                                                            {
+                                                                tool.1.push_str(&partial_json);
+                                                            }
+                                                        }
+                                                        _ => {}
+                                                    }
+                                                }
+                                            }
+                                            "content_block_start" => {
+                                                if let Some(block) = event.content_block
+                                                    && let Some(index) = event.index
+                                                    && block.kind == "tool_use"
+                                                    && !block.name.is_empty()
+                                                {
+                                                    let tool =
+                                                        tool_buffers.entry(index).or_default();
+
+                                                    tool.0 = block.name;
+                                                }
+                                            }
+                                            _ => {}
                                         }
+
+                                        // send tool calls to receiver:
+                                        tool_buffers.retain(|_index, (name, args)| {
+                                            if json::from_str::<JsonValue>(args).is_ok() {
+                                                tx.send(Ok(Chunk::Tool(
+                                                    name.clone(),
+                                                    args.clone(),
+                                                )))
+                                                .ok();
+                                                false
+                                            } else {
+                                                true
+                                            }
+                                        });
                                     }
                                 }
 
-                                // send chunk to receiver:
-                                tx.send(Ok(Chunk { text })).ok();
+                                // send text chunk to receiver:
+                                if !text.is_empty() {
+                                    tx.send(Ok(Chunk::Text(text))).ok();
+                                }
                             }
                         }
                     }
