@@ -16,10 +16,11 @@ I was too. That's why I built `AnyLM`: learn one intuitive API once, then unleas
 
 * **Standarts**: Supported `OpenAI` and `Anthropic` API standarts (what 90% of AI uses).
 * **Services**: `LM Studio`, `ChatGPT`, `Cerebras`, `OpenRouter`, `Perplexity`, `Claude` and `Voyage`.
-* **Stream-Response**: Allows you to read the LM response in parts without waiting for the full completion.
+* **Stream Response**: Allows you to read the LM response in parts without waiting for the full completion.
 * **Context Control**: Automatic trimming of the dialog context when exceeding the token limits.
 * **Embeddings**: Text embeddings support for fast text analysis.
-* **Image-View**: Image analysis support with reading from files and directly via `base64 url`.
+* **Image View**: Image analysis support with reading from files and directly via `base64 url`.
+* **Structured Response**: Structured AI-output in JSON format.
 * **Proxy Support**: Support for using proxy/vpn request tunneling.
 * **Is something missing?**: Write to me and I will add it too. (`Telegram`: [@fuderis](https://t.me/fuderis)).
 
