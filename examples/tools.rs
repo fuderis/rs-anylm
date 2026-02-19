@@ -24,14 +24,13 @@ async fn main() -> Result<()> {
     // read response stream:
     let mut tool_calls = vec![];
     while let Some(chunk) = response.next().await {
-        match chunk {
-            Ok(Chunk::Text(text)) => {
+        match chunk? {
+            Chunk::Text(text) => {
                 eprint!("{text}");
             }
-            Ok(Chunk::Tool(name, json_str)) => {
+            Chunk::Tool(name, json_str) => {
                 tool_calls.push((name, json_str));
             }
-            _ => {}
         }
     }
     println!();
