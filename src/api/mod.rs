@@ -4,6 +4,8 @@ pub mod completions;
 pub use completions::{Chunk, Completions, Stream};
 pub mod embeddings;
 pub use embeddings::{Embedded, Embedding, Embeddings, Usage};
+pub mod schema;
+pub use schema::{Schema, SchemaKind};
 pub mod role;
 pub use role::Role;
 pub mod content;

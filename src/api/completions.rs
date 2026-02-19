@@ -53,6 +53,9 @@ pub struct Completions {
     pub max_tokens: i32,
     /// The AI generation temperature
     pub temperature: f32,
+    /// The response schema
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema: Option<Schema>,
     /// The summary tokens count
     pub tokens_count: usize,
 }
@@ -81,8 +84,9 @@ impl Completions {
             } else {
                 -1
             },
-            temperature: 0.6,
+            temperature: 0.7,
             tokens_count: 0,
+            schema: None,
             api_kind: kind,
         }
     }
@@ -168,13 +172,33 @@ impl Completions {
     }
 
     /// Sets a connection timeout
-    pub fn timeout(mut self, secs: u64) -> Self {
-        self.timeout = Duration::from_secs(secs);
+    pub fn timeout(mut self, dur: Duration) -> Self {
+        self.timeout = dur;
         self
     }
     /// Sets a connection timeout
-    pub fn set_timeout(&mut self, secs: u64) {
+    pub fn set_timeout(&mut self, dur: Duration) {
+        self.timeout = dur;
+    }
+
+    /// Sets a connection timeout (from seconds)
+    pub fn timeout_secs(mut self, secs: u64) -> Self {
         self.timeout = Duration::from_secs(secs);
+        self
+    }
+    /// Sets a connection timeout (from seconds)
+    pub fn set_timeout_secs(&mut self, secs: u64) {
+        self.timeout = Duration::from_secs(secs);
+    }
+
+    /// Sets a connection timeout (from millis)
+    pub fn timeout_ms(mut self, secs: u64) -> Self {
+        self.timeout = Duration::from_millis(secs);
+        self
+    }
+    /// Sets a connection timeout (from millis)
+    pub fn set_timeout_ms(&mut self, secs: u64) {
+        self.timeout = Duration::from_millis(secs);
     }
 
     /// Sets the LM model name
@@ -246,6 +270,16 @@ impl Completions {
         self.max_tokens = count;
     }
 
+    /// Sets the structured response schema
+    pub fn schema(mut self, schema: Schema) -> Self {
+        self.schema.replace(schema);
+        self
+    }
+    /// Sets the structured response schema
+    pub fn set_schema(&mut self, schema: Schema) {
+        self.schema.replace(schema);
+    }
+
     /// Sends the request to LM server
     pub async fn send(&mut self) -> Result<Stream> {
         let is_openai_standart = self.api_kind.is_openai_standart();
@@ -287,15 +321,42 @@ impl Completions {
         // serialize request data:
         let mut data = json::to_value(&self).map_err(Error::from)?;
         let data = data.as_object_mut().unwrap();
-        data.remove("tokens_count");
-        data.insert(str!("stream"), JsonValue::Bool(true));
 
+        // remove field 'tokens_count':
+        data.remove("tokens_count");
         if let Some(messages) = data.get_mut("messages").and_then(|v| v.as_array_mut()) {
             for msg in messages {
                 if let Some(msg_obj) = msg.as_object_mut() {
                     msg_obj.remove("tokens_count");
                 }
             }
+        }
+        data.insert(str!("stream"), JsonValue::Bool(true));
+
+        // set JSON-schema:
+        if let Some(schema) = self.schema.take() {
+            if is_openai_standart {
+                data.insert(
+                    str!("response_format"),
+                    json!({
+                        "type": "json_schema",
+                        "json_schema": {
+                            "schema": schema
+                        }
+                    }),
+                );
+            } else {
+                data.insert(
+                    str!("tools"),
+                    json!([{
+                        "name": "response_format",
+                        "description": "Generate structured JSON response",
+                        "input_schema": schema
+                    }]),
+                );
+            }
+
+            data.remove("schema");
         }
 
         // create client:
@@ -341,9 +402,42 @@ impl Completions {
             while let Some(chunk) = stream.next().await {
                 match chunk {
                     Ok(bytes) => {
-                        buffer.push_str(&String::from_utf8_lossy(&bytes));
-                        // dbg!(&buffer);
+                        let bytes_stringify = String::from_utf8_lossy(&bytes);
 
+                        // check for error:
+                        if is_openai_standart {
+                            /// The OpenAI generation error
+                            #[derive(Debug, Deserialize)]
+                            struct OpenAIError {
+                                error: String,
+                            }
+
+                            if let Ok(OpenAIError { error }) = json::from_str(&bytes_stringify) {
+                                tx.send(Err(Error::ResponseError(error).into())).ok();
+                            }
+                        } else {
+                            /// The anthropic error data
+                            #[derive(Debug, Deserialize)]
+                            struct AnthropicErrorData {
+                                message: String,
+                            }
+
+                            /// The anthropic generation error
+                            #[derive(Debug, Deserialize)]
+                            struct AnthropicError {
+                                error: AnthropicErrorData,
+                            }
+
+                            if let Ok(AnthropicError {
+                                error: AnthropicErrorData { message },
+                            }) = json::from_str(&bytes_stringify)
+                            {
+                                tx.send(Err(Error::ResponseError(message).into())).ok();
+                            }
+                        }
+
+                        // else parse buffer:
+                        buffer.push_str(&bytes_stringify);
                         while let Some(pos) = buffer.find("\n\n") {
                             let event = buffer.drain(..=pos).collect::<String>();
                             if let Some(data_line) =
@@ -357,16 +451,21 @@ impl Completions {
 
                                 // OpenAI API standart:
                                 if is_openai_standart {
-                                    #[derive(Deserialize)]
+                                    /// The AI response chunk
+                                    #[derive(Debug, Deserialize)]
                                     struct OpenAIChunk {
                                         pub choices: Vec<OpenAIChoice>,
                                     }
-                                    #[derive(Deserialize)]
+
+                                    /// The AI response choise
+                                    #[allow(dead_code)]
+                                    #[derive(Debug, Deserialize)]
                                     struct OpenAIChoice {
                                         pub delta: OpenAIDelta,
-                                        // pub finish_reason: Option<String>,
                                     }
-                                    #[derive(Deserialize)]
+
+                                    /// The AI response delta content
+                                    #[derive(Debug, Deserialize)]
                                     struct OpenAIDelta {
                                         #[serde(default)]
                                         pub content: Option<String>,
@@ -386,15 +485,15 @@ impl Completions {
                                 }
                                 // Anthropic API standart:
                                 else {
-                                    #[derive(Deserialize)]
+                                    #[derive(Debug, Deserialize)]
                                     struct AnthropicChunk {
                                         r#type: String,
                                         delta: AnthropicDelta,
                                     }
-                                    #[derive(Deserialize)]
+                                    #[derive(Debug, Deserialize)]
                                     struct AnthropicDelta {
-                                        // r#type: String,
                                         text: Option<String>,
+                                        partial_json: Option<String>,
                                     }
 
                                     // parse chunk:
@@ -403,6 +502,8 @@ impl Completions {
                                         && r#type == "content_block_delta"
                                     {
                                         if let Some(content) = delta.text {
+                                            text.push_str(&content);
+                                        } else if let Some(content) = delta.partial_json {
                                             text.push_str(&content);
                                         }
                                     }

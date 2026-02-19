@@ -27,7 +27,7 @@ I was too. That's why I built `AnyLM`: learn one intuitive API once, then unleas
 
 ### Cerebras:
 ```rust
-use anylm::{Chunk, Completions, prelude::*};
+use anylm::{Chunk, Completions, Proxy, prelude::*};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
 
     // send request:
     let mut response = Completions::cerebras(api_key, "llama3.1-8b")
-        //.proxy(reqwest::Proxy::all("socks5://127.0.0.1:1080")?)
+        //.proxy(Proxy::all("socks5://127.0.0.1:1080")?)
         .user_message(vec!["Hello, how are you doing?".into()])
         .send()
         .await?;
@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
 
 ### Claude:
 ```rust
-use anylm::{Chunk, Completions, prelude::*};
+use anylm::{Chunk, Completions, Proxy, prelude::*};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
 
     // send request:
     let mut response = Completions::claude(api_key, "claude-opus-4-6")
-        //.proxy(reqwest::Proxy::all("socks5://127.0.0.1:1080")?)
+        //.proxy(Proxy::all("socks5://127.0.0.1:1080")?)
         .user_message(vec!["Hello, how are you doing?".into()])
         .send()
         .await?;
@@ -81,7 +81,7 @@ async fn main() -> Result<()> {
 }
 ```
 
-### ImageView (LM Studio as example):
+### ImageView:
 ```rust
 use anylm::{Chunk, Completions, prelude::*};
 
@@ -110,7 +110,7 @@ async fn main() -> Result<()> {
 }
 ```
 
-### Embeddings (LM Studio as example):
+### Embeddings:
 ```rust
 use anylm::{Embeddings, prelude::*};
 
@@ -124,6 +124,47 @@ async fn main() -> Result<()> {
 
     // print response:
     dbg!(response);
+
+    Ok(())
+}
+```
+
+### Structured JSON-response:
+```rust
+use anylm::{Chunk, Completions, Schema, prelude::*};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    /// The person structure
+    #[derive(Debug, serde::Deserialize)]
+    struct Person {
+        first_name: String,
+        last_name: Option<String>,
+        age: u8,
+    }
+
+    // send request:
+    let mut response = Completions::lmstudio("", "mistralai/ministral-3-3b")
+        .user_message(vec!["John Smith, 30 years old".into()])
+        .schema(
+            Schema::object("The user structure")
+                .required_property("first_name", Schema::string("The user first name"))
+                .optional_property("last_name", Schema::string("The user last name"))
+                .required_property("age", Schema::integer("The user age")),
+        )
+        .send()
+        .await?;
+
+    // read response stream:
+    let mut json_str = String::new();
+    while let Some(chunk) = response.next().await {
+        let Chunk { text } = chunk?;
+        json_str.push_str(&text);
+    }
+
+    // parse response as JSON:
+    let person: Person = serde_json::from_str(&json_str)?;
+    println!("{person:#?}");
 
     Ok(())
 }

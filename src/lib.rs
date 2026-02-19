@@ -9,6 +9,9 @@ pub mod image;
 
 pub mod api;
 pub use api::{
-    ApiKind, Chunk, Completions, Content, Embedded, Embedding, Embeddings, Message, Role, Stream,
-    Usage,
+    ApiKind, Chunk, Completions, Content, Embedded, Embedding, Embeddings, Message, Role, Schema,
+    SchemaKind, Stream, Usage,
 };
+
+pub use bytes::{self, Bytes};
+pub use reqwest::{self, Proxy};
