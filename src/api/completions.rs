@@ -147,73 +147,73 @@ impl Completions {
     }
 
     /// Sets the LM API authorization key
-    pub fn key(mut self, key: impl Into<String>) -> Self {
-        self.api_key = key.into();
-        self
-    }
-    /// Sets the LM API authorization key
     pub fn set_key(&mut self, key: impl Into<String>) {
         self.api_key = key.into();
     }
-
-    /// Sets the custom LM API server URL host
-    pub fn server(mut self, url: impl Into<String>) -> Self {
-        self.server = Some(url.into());
+    /// Sets the LM API authorization key
+    pub fn key(mut self, key: impl Into<String>) -> Self {
+        self.set_key(key);
         self
     }
+
     /// Sets the custom LM API server URL host
     pub fn set_server(&mut self, url: impl Into<String>) {
         self.server = Some(url.into());
     }
-
-    /// Sets a proxy tunnel settings
-    pub fn proxy(mut self, proxy: Proxy) -> Self {
-        self.proxy = Some(proxy);
+    /// Sets the custom LM API server URL host
+    pub fn server(mut self, url: impl Into<String>) -> Self {
+        self.set_server(url);
         self
     }
+
     /// Sets a proxy tunnel settings
     pub fn set_proxy(&mut self, proxy: Proxy) {
         self.proxy = Some(proxy);
     }
-
-    /// Sets a connection timeout
-    pub fn timeout(mut self, dur: Duration) -> Self {
-        self.timeout = dur;
+    /// Sets a proxy tunnel settings
+    pub fn proxy(mut self, proxy: Proxy) -> Self {
+        self.set_proxy(proxy);
         self
     }
+
     /// Sets a connection timeout
     pub fn set_timeout(&mut self, dur: Duration) {
         self.timeout = dur;
     }
-
-    /// Sets a connection timeout (from seconds)
-    pub fn timeout_secs(mut self, secs: u64) -> Self {
-        self.timeout = Duration::from_secs(secs);
+    /// Sets a connection timeout
+    pub fn timeout(mut self, dur: Duration) -> Self {
+        self.set_timeout(dur);
         self
     }
+
     /// Sets a connection timeout (from seconds)
     pub fn set_timeout_secs(&mut self, secs: u64) {
         self.timeout = Duration::from_secs(secs);
     }
-
-    /// Sets a connection timeout (from millis)
-    pub fn timeout_ms(mut self, secs: u64) -> Self {
-        self.timeout = Duration::from_millis(secs);
+    /// Sets a connection timeout (from seconds)
+    pub fn timeout_secs(mut self, secs: u64) -> Self {
+        self.set_timeout_secs(secs);
         self
     }
+
     /// Sets a connection timeout (from millis)
     pub fn set_timeout_ms(&mut self, secs: u64) {
         self.timeout = Duration::from_millis(secs);
     }
-
-    /// Sets the LM model name
-    pub fn model(mut self, model: impl Into<String>) -> Self {
-        self.model = model.into();
+    /// Sets a connection timeout (from millis)
+    pub fn timeout_ms(mut self, secs: u64) -> Self {
+        self.set_timeout_ms(secs);
         self
     }
+
     /// Sets the LM model name
     pub fn set_model(&mut self, model: impl Into<String>) {
         self.model = model.into();
+    }
+    /// Sets the LM model name
+    pub fn model(mut self, model: impl Into<String>) -> Self {
+        self.set_model(model);
+        self
     }
 
     /// Adds a message to request
@@ -256,53 +256,53 @@ impl Completions {
     }
 
     /// Sets the AI generation temperature
-    pub fn temperature(mut self, temperature: f32) -> Self {
-        self.temperature = temperature;
-        self
-    }
-    /// Sets the AI generation temperature
     pub fn set_temperature(&mut self, temperature: f32) {
         self.temperature = temperature;
     }
-
-    /// Sets the max context tokens count
-    pub fn max_tokens(mut self, count: i32) -> Self {
-        self.max_tokens = count;
+    /// Sets the AI generation temperature
+    pub fn temperature(mut self, temperature: f32) -> Self {
+        self.set_temperature(temperature);
         self
     }
+
     /// Sets the max context tokens count
     pub fn set_max_tokens(&mut self, count: i32) {
         self.max_tokens = count;
     }
-
-    /// Sets the structured response schema
-    pub fn schema(mut self, schema: Schema) -> Self {
-        self.schema.replace(schema);
+    /// Sets the max context tokens count
+    pub fn max_tokens(mut self, count: i32) -> Self {
+        self.set_max_tokens(count);
         self
     }
+
     /// Sets the structured response schema
     pub fn set_schema(&mut self, schema: Schema) {
         self.schema.replace(schema);
     }
-
-    /// Adds the tool calls
-    pub fn tools(mut self, tools: Vec<Tool>) -> Self {
-        self.tools.extend(tools);
+    /// Sets the structured response schema
+    pub fn schema(mut self, schema: Schema) -> Self {
+        self.set_schema(schema);
         self
     }
+
     /// Adds the tool calls
     pub fn set_tools(&mut self, tools: Vec<Tool>) {
         self.tools.extend(tools);
     }
-
-    /// Adds the tool call
-    pub fn tool(mut self, tool: Tool) -> Self {
-        self.tools.push(tool);
+    /// Adds the tool calls
+    pub fn tools(mut self, tools: Vec<Tool>) -> Self {
+        self.set_tools(tools);
         self
     }
+
     /// Adds the tool call
     pub fn set_tool(&mut self, tool: Tool) {
         self.tools.push(tool);
+    }
+    /// Adds the tool call
+    pub fn tool(mut self, tool: Tool) -> Self {
+        self.set_tool(tool);
+        self
     }
 
     /// Sends the request to LM server
@@ -359,7 +359,7 @@ impl Completions {
         data.insert(str!("stream"), JsonValue::Bool(true));
 
         // set output JSON-schema:
-        if let Some(schema) = self.schema.take() {
+        if let Some(mut schema) = self.schema.take() {
             data.remove("schema");
 
             // open ai:
@@ -369,6 +369,7 @@ impl Completions {
                     json!({
                         "type": "json_schema",
                         "json_schema": {
+                            "name": "response",
                             "schema": schema,
                             "strict": true
                         }
@@ -377,6 +378,8 @@ impl Completions {
             }
             // anthropic:
             else {
+                schema.additional_properties = Some(false);
+
                 data.insert(
                     str!("output_config"),
                     json!({
@@ -472,6 +475,16 @@ impl Completions {
 
                             if let Ok(OpenAIError { error }) = json::from_str(&bytes_stringify) {
                                 tx.send(Err(Error::ResponseError(error).into())).ok();
+                            }
+
+                            /// The OpenAI generation error
+                            #[derive(Debug, Deserialize)]
+                            struct OpenAIError2 {
+                                message: String,
+                            }
+
+                            if let Ok(OpenAIError2 { message }) = json::from_str(&bytes_stringify) {
+                                tx.send(Err(Error::ResponseError(message).into())).ok();
                             }
                         } else {
                             /// The anthropic error data

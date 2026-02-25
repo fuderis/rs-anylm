@@ -61,7 +61,6 @@ impl Schema {
                 s if !s.is_empty() => Some(s),
                 _ => None,
             },
-            additional_properties: Some(false),
             ..Default::default()
         }
     }

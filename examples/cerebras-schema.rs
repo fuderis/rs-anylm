@@ -2,7 +2,7 @@ use anylm::{Chunk, Completions, Schema, prelude::*};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let api_key = std::env::var("ANTHROPIC_API_KEY")?;
+    let api_key = std::env::var("CEREBRAS_API_KEY")?;
 
     /// The person structure
     #[allow(dead_code)]
@@ -14,7 +14,7 @@ async fn main() -> Result<()> {
     }
 
     // send request:
-    let mut response = Completions::anthropic(api_key, "claude-opus-4-6")
+    let mut response = Completions::cerebras(api_key, "llama3.1-8b")
         .proxy(Proxy::all("socks5://127.0.0.1:1080")?)
         .user_message(vec!["John Smith, 30 years old".into()])
         .schema(

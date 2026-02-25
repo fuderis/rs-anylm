@@ -122,64 +122,83 @@ impl Embeddings {
     }
 
     /// Sets the LM API authorization key
-    pub fn key(mut self, key: impl Into<String>) -> Self {
-        self.api_key = key.into();
-        self
-    }
-    /// Sets the LM API authorization key
     pub fn set_key(&mut self, key: impl Into<String>) {
         self.api_key = key.into();
     }
-
-    /// Sets the custom LM API server URL host
-    pub fn server(mut self, url: impl Into<String>) -> Self {
-        self.server = Some(url.into());
+    /// Sets the LM API authorization key
+    pub fn key(mut self, key: impl Into<String>) -> Self {
+        self.set_key(key);
         self
     }
+
     /// Sets the custom LM API server URL host
     pub fn set_server(&mut self, url: impl Into<String>) {
         self.server = Some(url.into());
     }
-
-    /// Sets a proxy tunnel settings
-    pub fn proxy(mut self, proxy: Proxy) -> Self {
-        self.proxy = Some(proxy);
+    /// Sets the custom LM API server URL host
+    pub fn server(mut self, url: impl Into<String>) -> Self {
+        self.set_server(url);
         self
     }
+
     /// Sets a proxy tunnel settings
     pub fn set_proxy(&mut self, proxy: Proxy) {
         self.proxy = Some(proxy);
     }
-
-    /// Sets a connection timeout
-    pub fn timeout(mut self, secs: u64) -> Self {
-        self.timeout = Duration::from_secs(secs);
+    /// Sets a proxy tunnel settings
+    pub fn proxy(mut self, proxy: Proxy) -> Self {
+        self.set_proxy(proxy);
         self
     }
-    /// Sets a connection timeout
-    pub fn set_timeout(&mut self, secs: u64) {
-        self.timeout = Duration::from_secs(secs);
-    }
 
-    /// Sets the LM model name
-    pub fn model(mut self, model: impl Into<String>) -> Self {
-        self.model = model.into();
+    /// Sets a connection timeout
+    pub fn set_timeout(&mut self, dur: Duration) {
+        self.timeout = dur;
+    }
+    /// Sets a connection timeout
+    pub fn timeout(mut self, dur: Duration) -> Self {
+        self.set_timeout(dur);
         self
     }
+
+    /// Sets a connection timeout (from seconds)
+    pub fn set_timeout_secs(&mut self, secs: u64) {
+        self.timeout = Duration::from_secs(secs);
+    }
+    /// Sets a connection timeout (from seconds)
+    pub fn timeout_secs(mut self, secs: u64) -> Self {
+        self.set_timeout_secs(secs);
+        self
+    }
+
+    /// Sets a connection timeout (from millis)
+    pub fn set_timeout_ms(&mut self, secs: u64) {
+        self.timeout = Duration::from_millis(secs);
+    }
+    /// Sets a connection timeout (from millis)
+    pub fn timeout_ms(mut self, secs: u64) -> Self {
+        self.set_timeout_ms(secs);
+        self
+    }
+
     /// Sets the LM model name
     pub fn set_model(&mut self, model: impl Into<String>) {
         self.model = model.into();
     }
-
-    /// Adds embedding input
-    pub fn input(mut self, input: impl Into<String>) -> Self {
-        self.input.push(input.into());
+    /// Sets the LM model name
+    pub fn model(mut self, model: impl Into<String>) -> Self {
+        self.set_model(model);
         self
     }
 
     /// Adds embedding input
     pub fn add_input(&mut self, input: impl Into<String>) {
         self.input.push(input.into());
+    }
+    /// Adds embedding input
+    pub fn input(mut self, input: impl Into<String>) -> Self {
+        self.add_input(input);
+        self
     }
 
     /// Sends the request to LM server
