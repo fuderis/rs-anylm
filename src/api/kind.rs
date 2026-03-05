@@ -36,13 +36,13 @@ pub enum ApiKind {
 }
 
 impl ApiKind {
-    /// Returns true is it's OpenAI API standart
+    /// Returns true if it's OpenAI API standart
     pub fn is_openai_standart(&self) -> bool {
         use ApiKind::*;
         *self != Anthropic && *self != Claude
     }
 
-    /// Returns true is it's Anthropic API standart
+    /// Returns true if it's Anthropic API standart
     pub fn is_anthropic_standart(&self) -> bool {
         use ApiKind::*;
         *self == Anthropic || *self == Claude
