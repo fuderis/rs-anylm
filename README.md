@@ -234,7 +234,7 @@ async fn main() -> Result<()> {
   [*Telegram*](https://t.me/fuderis),
   [*Telegram Channel*](https://t.me/fuderis_club),
   [*VKontakte*](https://vk.com/fuderis).
-* **Donat**: `TON: UQB_r6IFgMYTJUKkhZNgjXcgp4aIJYwB6Gfiiukzg2lIC_Kc`
+* **Donate**: `TON: UQBq2GVLt_nu6bF8ku0RneWDr_B0AdrBMXVPcRrNmTU6mz65`
 
 > Thank you for your support! Don't forget to check out my other projects as well. [*GitHub*](https://github.com/fuderis)<br>
 **P.s.**: This software is actively evolving, and your suggestions and feedback are always welcome!
