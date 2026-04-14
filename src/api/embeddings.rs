@@ -1,5 +1,5 @@
 use super::ApiKind;
-use crate::{error::ResponseError, prelude::*};
+use crate::{AiOptions, error::ResponseError, prelude::*};
 use reqwest::{Client, Proxy, header};
 use std::time::Duration;
 
@@ -245,5 +245,35 @@ impl Embeddings {
         let embeddings = json::from_str(&output)?;
 
         Ok(embeddings)
+    }
+}
+
+impl TryFrom<AiOptions> for Embeddings {
+    type Error = DynError;
+
+    fn try_from(ops: AiOptions) -> Result<Self> {
+        let mut this = Self::new(
+            // choose AI service
+            ops.kind,
+            // read API key
+            if let Some(v) = ops.env_var.as_ref() {
+                std::env::var(v).unwrap_or_default()
+            } else {
+                String::new()
+            },
+            // choose model
+            ops.model,
+        );
+
+        // set default server host:
+        if let Some(host) = ops.server.as_ref() {
+            this.set_server(host.to_owned());
+        }
+        // set proxy options:
+        if let Some(proxy) = ops.proxy.as_ref() {
+            this.set_proxy(Proxy::all(proxy.to_owned())?);
+        }
+
+        Ok(this)
     }
 }

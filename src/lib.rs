@@ -7,6 +7,9 @@ pub use utils::*;
 
 pub mod image;
 
+pub mod options;
+pub use options::AiOptions;
+
 pub mod api;
 pub use api::{
     ApiKind, Chunk, Completions, Content, Embedding, Embeddings, EmbeddingsData, Message, Role,
