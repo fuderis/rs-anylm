@@ -19,7 +19,7 @@ checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
 name = "anylm"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "base64",
  "bytes",
@@ -726,9 +726,9 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
 name = "macron"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b93c109e1c617ea746296693477a06ddb0ece032755f2ca1953e061678d0fb5a"
+checksum = "eb45b25455dcc1ba3784c54746aee41507dc61b54d5c503e2e8c1c9756a9596e"
 dependencies = [
  "macron-impl-display",
  "macron-impl-error",

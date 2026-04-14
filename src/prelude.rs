@@ -2,6 +2,13 @@
 pub(crate) use crate::error::Error;
 pub(crate) use macron::prelude::*;
 
+/// The dynamic error type
+pub(crate) type DynError = Box<dyn std::error::Error + Send + Sync + 'static>;
+/// The short result alias
+pub(crate) type Result<T> = std::result::Result<T, DynError>;
+/// The std result alias
+pub(crate) use std::result::Result as StdResult;
+
 pub use bytes::Bytes;
 pub use reqwest::Proxy;
 
