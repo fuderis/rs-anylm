@@ -29,7 +29,7 @@ I was too. That's why I built `AnyLM`: learn one intuitive API once, then unleas
 
 ### Cerebras:
 ```rust
-use anylm::{Chunk, Completions, Proxy, prelude::*};
+use anylm::{AiChunk, Completions, Proxy, prelude::*};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let Chunk::Text(text) = chunk? {
+        if let AiChunk::Text { text } = chunk? {
             eprint!("{text}");
         }
     }
@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
 
 ### Claude:
 ```rust
-use anylm::{Chunk, Completions, Proxy, prelude::*};
+use anylm::{AiChunk, Completions, Proxy, prelude::*};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let Chunk::Text(text) = chunk? {
+        if let AiChunk::Text { text } = chunk? {
             eprint!("{text}");
         }
     }
@@ -83,7 +83,7 @@ async fn main() -> Result<()> {
 
 ### ImageView:
 ```rust
-use anylm::{Chunk, Completions, prelude::*};
+use anylm::{AiChunk, Completions, prelude::*};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -99,7 +99,7 @@ async fn main() -> Result<()> {
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let Chunk::Text(text) = chunk? {
+        if let AiChunk::Text { text } = chunk? {
             eprint!("{text}");
         }
     }
@@ -111,7 +111,7 @@ async fn main() -> Result<()> {
 
 ### Structured Output (JSON):
 ```rust
-use anylm::{Chunk, Completions, Schema, prelude::*};
+use anylm::{AiChunk, Completions, Schema, prelude::*};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -138,7 +138,7 @@ async fn main() -> Result<()> {
     // read response stream:
     let mut json_str = String::new();
     while let Some(chunk) = response.next().await {
-        if let Chunk::Text(text) = chunk? {
+        if let AiChunk::Text { text } = chunk? {
             json_str.push_str(&text);
         }
     }
@@ -153,7 +153,7 @@ async fn main() -> Result<()> {
 
 ### Tool Calls:
 ```rust
-use anylm::{Chunk, Completions, Schema, Tool, prelude::*};
+use anylm::{AiChunk, Completions, Schema, Tool, prelude::*};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -179,10 +179,10 @@ async fn main() -> Result<()> {
     let mut tool_calls = vec![];
     while let Some(chunk) = response.next().await {
         match chunk? {
-            Chunk::Text(text) => {
+            AiChunk::Text { text } => {
                 eprint!("{text}");
             }
-            Chunk::Tool(name, json_str) => {
+            AiChunk::Tool { name, json_str } => {
                 tool_calls.push((name, json_str));
             }
         }

@@ -1,16 +1,23 @@
 pub mod kind;
 pub use kind::ApiKind;
+
 pub mod completions;
-pub use completions::{Chunk, Completions, Stream};
+pub use completions::{AiChunk, Completions, Stream};
+
 pub mod embeddings;
 pub use embeddings::{Embedding, Embeddings, EmbeddingsData, Usage};
+
 pub mod schema;
 pub use schema::{Schema, SchemaKind};
+
 pub mod tool;
 pub use tool::Tool;
+
 pub mod role;
 pub use role::Role;
+
 pub mod content;
 pub use content::Content;
+
 pub mod message;
 pub use message::Message;

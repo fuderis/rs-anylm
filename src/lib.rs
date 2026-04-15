@@ -12,7 +12,7 @@ pub use options::AiOptions;
 
 pub mod api;
 pub use api::{
-    ApiKind, Chunk, Completions, Content, Embedding, Embeddings, EmbeddingsData, Message, Role,
+    AiChunk, ApiKind, Completions, Content, Embedding, Embeddings, EmbeddingsData, Message, Role,
     Schema, SchemaKind, Stream, Tool, Usage,
 };
 

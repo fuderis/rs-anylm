@@ -1,10 +1,12 @@
-use anylm::{Chunk, Completions, prelude::*};
+use anylm::{AiChunk, Completions};
 use std::path::Path;
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // send request:
-    let mut response = Completions::lmstudio(1234, "qwen/qwen3-vl-4b")
+    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
         .user_message(vec![
             Path::new("test-image.png").into(),
             "What's on the picture?".into(),
@@ -14,7 +16,7 @@ async fn main() -> Result<()> {
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let Chunk::Text(text) = chunk? {
+        if let AiChunk::Text { text } = chunk? {
             eprint!("{text}");
         }
     }

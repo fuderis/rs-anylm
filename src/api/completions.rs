@@ -8,21 +8,22 @@ use tokio::sync::mpsc;
 /// The completions response stream reader
 #[derive(Debug)]
 pub struct Stream {
-    rx: mpsc::UnboundedReceiver<Result<Chunk>>,
+    rx: mpsc::UnboundedReceiver<Result<AiChunk>>,
 }
 
 impl Stream {
     /// Read a next completions response chunk
-    pub async fn next(&mut self) -> Option<Result<Chunk>> {
+    pub async fn next(&mut self) -> Option<Result<AiChunk>> {
         self.rx.recv().await
     }
 }
 
 /// The completions response chunk
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Chunk {
-    Text(String),
-    Tool(String, String),
+#[serde(untagged)]
+pub enum AiChunk {
+    Text { text: String },
+    Tool { name: String, json_str: String },
 }
 
 /// The LM API chat completions request
@@ -451,7 +452,7 @@ impl Completions {
 
         // send request:
         let response = request.send().await?;
-        let (tx, rx) = mpsc::unbounded_channel::<Result<Chunk>>();
+        let (tx, rx) = mpsc::unbounded_channel::<Result<AiChunk>>();
 
         // spawn stream reader:
         tokio::spawn(async move {
@@ -487,7 +488,7 @@ impl Completions {
                                 // OpenAI API standart:
                                 if is_openai_standart {
                                     #[derive(Debug, Deserialize)]
-                                    struct OpenAIChunk {
+                                    struct OpenAIAiChunk {
                                         choices: Vec<OpenAIChoice>,
                                     }
                                     #[allow(dead_code)]
@@ -524,8 +525,8 @@ impl Completions {
                                     }
 
                                     // parse chunk:
-                                    if let Ok(OpenAIChunk { choices }) =
-                                        json::from_str::<OpenAIChunk>(json_data)
+                                    if let Ok(OpenAIAiChunk { choices }) =
+                                        json::from_str::<OpenAIAiChunk>(json_data)
                                             .map_err(Error::from)
                                     {
                                         for choice in choices {
@@ -557,10 +558,10 @@ impl Completions {
                                             // send tool calls to receiver:
                                             tool_buffers.retain(|_index, (name, args)| {
                                                 if json::from_str::<JsonValue>(&args).is_ok() {
-                                                    tx.send(Ok(Chunk::Tool(
-                                                        name.clone(),
-                                                        args.clone(),
-                                                    )))
+                                                    tx.send(Ok(AiChunk::Tool {
+                                                        name: name.clone(),
+                                                        json_str: args.clone(),
+                                                    }))
                                                     .ok();
                                                     false
                                                 } else {
@@ -641,10 +642,10 @@ impl Completions {
                                         // send tool calls to receiver:
                                         tool_buffers.retain(|_index, (name, args)| {
                                             if json::from_str::<JsonValue>(args).is_ok() {
-                                                tx.send(Ok(Chunk::Tool(
-                                                    name.clone(),
-                                                    args.clone(),
-                                                )))
+                                                tx.send(Ok(AiChunk::Tool {
+                                                    name: name.clone(),
+                                                    json_str: args.clone(),
+                                                }))
                                                 .ok();
                                                 false
                                             } else {
@@ -656,7 +657,7 @@ impl Completions {
 
                                 // send text chunk to receiver:
                                 if !text.is_empty() {
-                                    tx.send(Ok(Chunk::Text(text))).ok();
+                                    tx.send(Ok(AiChunk::Text { text })).ok();
                                 }
                             }
                         }

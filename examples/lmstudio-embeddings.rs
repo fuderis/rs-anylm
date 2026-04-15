@@ -1,4 +1,6 @@
-use anylm::{Embeddings, prelude::*};
+use anylm::Embeddings;
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {

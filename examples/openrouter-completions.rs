@@ -1,4 +1,6 @@
-use anylm::{Chunk, Completions, Proxy, prelude::*};
+use anylm::{AiChunk, Completions, Proxy};
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -13,7 +15,7 @@ async fn main() -> Result<()> {
 
     // read response stream:
     while let Some(chunk) = response.next().await {
-        if let Chunk::Text(text) = chunk? {
+        if let AiChunk::Text { text } = chunk? {
             eprint!("{text}");
         };
     }

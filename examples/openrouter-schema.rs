@@ -1,4 +1,6 @@
-use anylm::{Chunk, Completions, Schema, prelude::*};
+use anylm::{AiChunk, Completions, Schema, prelude::*};
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -29,7 +31,7 @@ async fn main() -> Result<()> {
     // read response stream:
     let mut json_str = String::new();
     while let Some(chunk) = response.next().await {
-        if let Chunk::Text(text) = chunk? {
+        if let AiChunk::Text { text } = chunk? {
             json_str.push_str(&text);
         }
     }

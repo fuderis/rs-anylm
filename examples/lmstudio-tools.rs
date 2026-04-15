@@ -1,4 +1,6 @@
-use anylm::{Chunk, Completions, Schema, Tool, prelude::*};
+use anylm::{AiChunk, Completions, Schema, Tool};
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,10 +27,10 @@ async fn main() -> Result<()> {
     let mut tool_calls = vec![];
     while let Some(chunk) = response.next().await {
         match chunk? {
-            Chunk::Text(text) => {
+            AiChunk::Text { text } => {
                 eprint!("{text}");
             }
-            Chunk::Tool(name, json_str) => {
+            AiChunk::Tool { name, json_str } => {
                 tool_calls.push((name, json_str));
             }
         }
