@@ -89,7 +89,7 @@ use anylm::{AiChunk, Completions, prelude::*};
 async fn main() -> Result<()> {
     // send request:
     let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
-        .server("http://localhost:1234")
+        .host("http://localhost:1234")
         .user_message(vec![
             Path::new("test-image.png").into(),
             "What's on the picture?".into(),
