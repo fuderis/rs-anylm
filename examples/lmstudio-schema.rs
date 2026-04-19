@@ -1,52 +1,41 @@
-use anylm::{AiChunk, Completions, Schema, Tool};
+use anylm::{AiChunk, Completions, Schema};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    /// The weather tool data
+    /// The person structure
     #[allow(dead_code)]
     #[derive(Debug, serde::Deserialize)]
-    struct LocationData {
-        location: String,
+    struct Person {
+        first_name: String,
+        last_name: Option<String>,
+        age: u8,
     }
 
     // send request:
-    let mut response = Completions::lmstudio("", "mistralai/ministral-3-3b")
-        .user_message(vec!["What's the weather like in London?".into()])
-        .tool(Tool::new(
-            "weather",
-            "Search weather by location",
-            Schema::object("Location data")
-                .required_property("location", Schema::string("The location")),
-        ))
+    let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
+        .user_message(vec!["John Smith, 30 years old".into()])
+        .schema(
+            Schema::object("The user structure")
+                .required_property("first_name", Schema::string("The user first name"))
+                .optional_property("last_name", Schema::string("The user last name"))
+                .required_property("age", Schema::integer("The user age")),
+        )
         .send()
         .await?;
 
     // read response stream:
-    let mut tool_calls = vec![];
+    let mut json_str = String::new();
     while let Some(chunk) = response.next().await {
-        match chunk? {
-            AiChunk::Text { text } => {
-                eprint!("{text}");
-            }
-            AiChunk::Tool { name, json_str } => {
-                tool_calls.push((name, json_str));
-            }
+        if let AiChunk::Text { text } = chunk? {
+            json_str.push_str(&text);
         }
     }
-    println!();
 
-    // handle tool calls:
-    for (name, json_str) in tool_calls {
-        match name.as_ref() {
-            "weather" => {
-                let location: LocationData = serde_json::from_str(&json_str)?;
-                println!("{location:#?}");
-            }
-            _ => {}
-        }
-    }
+    // parse response as JSON:
+    let person: Person = serde_json::from_str(&json_str)?;
+    println!("{person:#?}");
 
     Ok(())
 }

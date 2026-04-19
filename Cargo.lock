@@ -19,8 +19,9 @@ checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
 name = "anylm"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
+ "atoman",
  "base64",
  "bytes",
  "futures",
@@ -30,6 +31,29 @@ dependencies = [
  "serde",
  "serde_json",
  "tiktoken-rs",
+ "tokio",
+]
+
+[[package]]
+name = "arc-swap"
+version = "1.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a3a1fd6f75306b68087b831f025c712524bcb19aad54e557b1129cfa0a2b207"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
+name = "atoman"
+version = "0.2.17"
+dependencies = [
+ "arc-swap",
+ "bytes",
+ "futures",
+ "macron",
+ "once_cell",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 

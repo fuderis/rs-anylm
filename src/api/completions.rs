@@ -1,17 +1,17 @@
 use super::*;
-use crate::{AiOptions, error::ResponseError, prelude::*};
-use futures::StreamExt;
+use crate::{AiOptions, prelude::*};
+use atoman::{Stream, StreamExt};
 use reqwest::{Client, Proxy, header};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
 /// The completions response stream reader
 #[derive(Debug)]
-pub struct Stream {
+pub struct AiStream {
     rx: mpsc::UnboundedReceiver<Result<AiChunk>>,
 }
 
-impl Stream {
+impl AiStream {
     /// Read a next completions response chunk
     pub async fn next(&mut self) -> Option<Result<AiChunk>> {
         self.rx.recv().await
@@ -40,7 +40,7 @@ pub struct Completions {
     pub api_key: String,
     /// The custom server host
     #[serde(skip)]
-    pub server: Option<String>,
+    pub host: Option<String>,
     /// The proxy tunnel settings
     #[serde(skip)]
     pub proxy: Option<Proxy>,
@@ -69,26 +69,22 @@ impl Completions {
     /// Creates a new LM chat completions request
     pub fn new(kind: ApiKind, key: impl Into<String>, model: impl Into<String>) -> Self {
         Self {
-            server: if kind == ApiKind::LmStudio {
+            host: if kind.is_lmstudio() {
                 Some(str!("http://127.0.0.1:1234"))
             } else {
                 None
             },
-            api_version: if kind.is_anthropic_standart() {
+            api_version: if kind.is_anthropic() {
                 Some(str!("2023-06-01"))
             } else {
                 None
             },
             api_key: key.into(),
             proxy: None,
-            timeout: Duration::from_secs(30),
+            timeout: Duration::from_secs(600),
             model: model.into(),
             messages: Vec::new(),
-            max_tokens: if kind.is_anthropic_standart() {
-                8096
-            } else {
-                -1
-            },
+            max_tokens: if kind.is_anthropic() { 8096 } else { -1 },
             temperature: 0.7,
             tokens_count: 0,
             schema: None,
@@ -147,73 +143,55 @@ impl Completions {
         Self::new(ApiKind::Perplexity, key, model)
     }
 
-    /// Sets the LM API authorization key
-    pub fn set_key(&mut self, key: impl Into<String>) {
-        self.api_key = key.into();
+    /// Creates a new Google AI request
+    pub fn google(key: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::new(ApiKind::Google, key, model)
     }
+
+    /// Creates a new Google Gemini AI request
+    pub fn gemini(key: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::new(ApiKind::Gemini, key, model)
+    }
+
     /// Sets the LM API authorization key
     pub fn key(mut self, key: impl Into<String>) -> Self {
-        self.set_key(key);
+        self.api_key = key.into();
         self
     }
 
-    /// Sets the custom LM API server URL host
-    pub fn set_server(&mut self, url: impl Into<String>) {
-        self.server = Some(url.into());
-    }
-    /// Sets the custom LM API server URL host
-    pub fn server(mut self, url: impl Into<String>) -> Self {
-        self.set_server(url);
+    /// Sets the custom API server host
+    pub fn host(mut self, url: impl Into<String>) -> Self {
+        self.host = Some(url.into());
         self
     }
 
-    /// Sets a proxy tunnel settings
-    pub fn set_proxy(&mut self, proxy: Proxy) {
-        self.proxy = Some(proxy);
-    }
     /// Sets a proxy tunnel settings
     pub fn proxy(mut self, proxy: Proxy) -> Self {
-        self.set_proxy(proxy);
+        self.proxy = Some(proxy);
         self
     }
 
-    /// Sets a connection timeout
-    pub fn set_timeout(&mut self, dur: Duration) {
-        self.timeout = dur;
-    }
     /// Sets a connection timeout
     pub fn timeout(mut self, dur: Duration) -> Self {
-        self.set_timeout(dur);
+        self.timeout = dur;
         self
     }
 
-    /// Sets a connection timeout (from seconds)
-    pub fn set_timeout_secs(&mut self, secs: u64) {
-        self.timeout = Duration::from_secs(secs);
-    }
     /// Sets a connection timeout (from seconds)
     pub fn timeout_secs(mut self, secs: u64) -> Self {
-        self.set_timeout_secs(secs);
+        self.timeout = Duration::from_secs(secs);
         self
     }
 
-    /// Sets a connection timeout (from millis)
-    pub fn set_timeout_ms(&mut self, secs: u64) {
-        self.timeout = Duration::from_millis(secs);
-    }
     /// Sets a connection timeout (from millis)
     pub fn timeout_ms(mut self, secs: u64) -> Self {
-        self.set_timeout_ms(secs);
+        self.timeout = Duration::from_millis(secs);
         self
     }
 
     /// Sets the LM model name
-    pub fn set_model(&mut self, model: impl Into<String>) {
-        self.model = model.into();
-    }
-    /// Sets the LM model name
     pub fn model(mut self, model: impl Into<String>) -> Self {
-        self.set_model(model);
+        self.model = model.into();
         self
     }
 
@@ -282,77 +260,66 @@ impl Completions {
         self
     }
 
-    /// Sets the max context tokens count
-    pub fn set_max_tokens(&mut self, count: i32) {
-        self.max_tokens = count;
-    }
-    /// Sets the max context tokens count
+    /// Sets the maximum context tokens count
     pub fn max_tokens(mut self, count: i32) -> Self {
-        self.set_max_tokens(count);
+        self.max_tokens = count;
         self
     }
 
-    /// Sets the structured response schema
-    pub fn set_schema(&mut self, schema: Schema) {
-        self.schema.replace(schema);
-    }
     /// Sets the structured response schema
     pub fn schema(mut self, schema: Schema) -> Self {
-        self.set_schema(schema);
+        self.schema.replace(schema);
         self
     }
 
-    /// Adds the tool calls
-    pub fn set_tools(&mut self, tools: Vec<Tool>) {
-        self.tools.extend(tools);
-    }
     /// Adds the tool calls
     pub fn tools(mut self, tools: Vec<Tool>) -> Self {
-        self.set_tools(tools);
+        self.tools.extend(tools);
         self
     }
 
     /// Adds the tool call
-    pub fn set_tool(&mut self, tool: Tool) {
-        self.tools.push(tool);
-    }
-    /// Adds the tool call
     pub fn tool(mut self, tool: Tool) -> Self {
-        self.set_tool(tool);
+        self.tools.push(tool);
         self
     }
 
     /// Sends the request to LM server
-    pub async fn send(&mut self) -> Result<Stream> {
-        let is_openai_standart = self.api_kind.is_openai_standart();
+    pub async fn send(&mut self) -> Result<AiStream> {
+        use crate::chunk::*;
 
         // generate URL:
-        let url = if let Some(url) = &self.server {
-            self.api_kind.custom_completions_url(url)
+        let url = if let Some(host) = &self.host {
+            str!(
+                "{host}{}{}",
+                if host.ends_with("/") { "" } else { "/" },
+                self.api_kind.completions_path(&self.model)
+            )
         } else {
-            self.api_kind.completions_url()
+            str!(
+                "{}/{}",
+                self.api_kind.host(),
+                self.api_kind.completions_path(&self.model)
+            )
         };
 
-        // remove extra context:
+        // context management:
         if self.max_tokens > 0 {
             let mut idx = 0;
             let mut max_idx = self.messages.len() - 1;
             let max_count = self.max_tokens as usize;
 
-            // removing non-system old messages to free context size:
             while self.tokens_count > max_count && idx < max_idx {
                 let msg = &self.messages[idx];
                 if msg.role.is_system() {
                     idx += 1;
                     continue;
                 }
-
                 self.tokens_count -= msg.tokens_count;
                 self.messages.remove(idx);
                 max_idx -= 1;
             }
 
-            // check last message role for user query:
             if let Some(msg) = self.messages.last()
                 && msg.role.is_assistant()
             {
@@ -360,11 +327,10 @@ impl Completions {
             }
         }
 
-        // serialize request data:
+        // serialize & clean data:
         let mut data = json::to_value(&self).map_err(Error::from)?;
         let data = data.as_object_mut().unwrap();
 
-        // remove field 'tokens_count':
         data.remove("tokens_count");
         if let Some(messages) = data.get_mut("messages").and_then(|v| v.as_array_mut()) {
             for msg in messages {
@@ -375,309 +341,196 @@ impl Completions {
         }
         data.insert(str!("stream"), JsonValue::Bool(true));
 
-        // set output JSON-schema:
+        // JSON-schema & tool calls:
         if let Some(mut schema) = self.schema.take() {
             data.remove("schema");
-
-            // open ai:
-            if is_openai_standart {
+            if self.api_kind.is_openai() {
                 data.insert(
                     str!("response_format"),
                     json!({
                         "type": "json_schema",
-                        "json_schema": {
-                            "name": "response",
-                            "schema": schema,
-                            "strict": true
-                        }
+                        "json_schema": { "name": "response", "schema": schema, "strict": true }
                     }),
                 );
-            }
-            // anthropic:
-            else {
+            } else if !self.api_kind.is_google() {
                 schema.additional_properties = Some(false);
-
                 data.insert(
                     str!("output_config"),
                     json!({
-                        "format": {
-                            "type": "json_schema",
-                            "schema": schema,
-                        }
+                        "format": { "type": "json_schema", "schema": schema }
                     }),
                 );
             }
         }
 
-        // set tool calls:
         if !self.tools.is_empty() {
             let mut tools_json = vec![];
-
             for tool in &self.tools {
-                // open ai:
-                if is_openai_standart {
-                    tools_json.push(json!({
-                        "type": "function",
-                        "function": tool
-                    }));
-                }
-                // anthropic:
-                else {
+                if self.api_kind.is_openai() {
+                    tools_json.push(json!({ "type": "function", "function": tool }));
+                } else if !self.api_kind.is_google() {
                     let mut tool_json = json::to_value(tool).unwrap();
                     let tool_obj = tool_json.as_object_mut().unwrap();
                     let params = tool_obj.get_mut("parameters").cloned().unwrap();
-
                     tool_obj.remove("parameters");
                     tool_obj.insert("input_schema".to_string(), params);
                     tools_json.push(tool_json);
                 }
             }
-
             data.insert(str!("tools"), JsonValue::Array(tools_json));
         }
 
-        // create client:
-        let mut client = Client::builder().timeout(self.timeout);
-
-        // set proxy:
+        // create client & configure proxy:
+        let mut client_builder = Client::builder().timeout(self.timeout);
         if let Some(proxy) = self.proxy.take() {
-            client = client.proxy(proxy);
-            client = client.danger_accept_invalid_certs(true); // VPN SSL
+            client_builder = client_builder
+                .proxy(proxy)
+                .danger_accept_invalid_certs(true);
         }
 
-        // send request:
-        let mut request = client
+        // build request & options:
+        let mut request = client_builder
             .build()?
             .post(&url)
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::ACCEPT, "text/event-stream")
             .json(&data);
 
-        // open ai:
-        if is_openai_standart {
-            request = request.header(header::AUTHORIZATION, fmt!("Bearer {}", self.api_key));
-        }
-        // anthropic:
-        else {
+        // set api key:
+        if self.api_kind.is_google() {
+            request = request.header("x-goog-api-key", &self.api_key);
+        } else if self.api_kind.is_anthropic() {
             request = request.header("x-api-key", &self.api_key);
             request = request.header(
                 "anthropic-version",
                 self.api_version.take().unwrap_or(str!("2023-06-01")),
             );
+        } else {
+            request = request.header(header::AUTHORIZATION, str!("Bearer {}", self.api_key));
         }
 
-        // send request:
+        if self.api_kind.is_google() {
+            let messages = data.remove("messages").unwrap_or(json!([]));
+            let contents: Vec<JsonValue> = messages
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|m| {
+                    json!({
+                        "role": if m["role"] == "assistant" { "model" } else { "user" },
+                        "parts": m["content"]
+                    })
+                })
+                .collect();
+            data.insert(str!("contents"), json!(contents));
+            data.remove("model");
+        }
+
+        // send & spawn reader:
         let response = request.send().await?;
+        let bytes_stream = response.bytes_stream().map(|r| r.map_err(Into::into));
+
+        let mut reader = Stream::read::<ResponseChunk>(bytes_stream);
+
         let (tx, rx) = mpsc::unbounded_channel::<Result<AiChunk>>();
+        let mut tool_buffers = HashMap::<usize, (String, String)>::new();
 
-        // spawn stream reader:
         tokio::spawn(async move {
-            let mut buffer = String::new();
-            let mut stream = response.bytes_stream();
-            let mut tool_buffers = HashMap::<usize, (String, String)>::new();
+            loop {
+                match reader.read().await {
+                    Ok(Some(chunk)) => {
+                        let mut text_output = String::new();
 
-            // read chunks:
-            while let Some(chunk) = stream.next().await {
-                match chunk {
-                    Ok(bytes) => {
-                        let bytes_stringify = String::from_utf8_lossy(&bytes);
-
-                        // check for an error:
-                        if let Some(e) = ResponseError::from_str(&bytes_stringify) {
-                            tx.send(Err(Error::ResponseError(e).into())).ok();
-                            return;
-                        }
-
-                        // else parse buffer:
-                        buffer.push_str(&bytes_stringify);
-                        while let Some(pos) = buffer.find("\n\n") {
-                            let event = buffer.drain(..=pos).collect::<String>();
-                            if let Some(data_line) =
-                                event.lines().find(|line| line.starts_with("data: "))
-                            {
-                                let json_data = &data_line[6..]; // cut "data: "
-                                if json_data == "[DONE]" {
-                                    break;
-                                }
-                                let mut text = String::new();
-
-                                // OpenAI API standart:
-                                if is_openai_standart {
-                                    #[derive(Debug, Deserialize)]
-                                    struct OpenAIAiChunk {
-                                        choices: Vec<OpenAIChoice>,
+                        match chunk {
+                            ResponseChunk::OpenAi(OpenAIChunk { choices }) => {
+                                for choice in choices {
+                                    if let Some(content) = choice.delta.content {
+                                        text_output.push_str(&content);
                                     }
-                                    #[allow(dead_code)]
-                                    #[derive(Debug, Deserialize)]
-                                    struct OpenAIChoice {
-                                        delta: OpenAIDelta,
-                                        #[serde(default)]
-                                        finish_reason: Option<String>,
-                                    }
-                                    #[derive(Debug, Deserialize)]
-                                    struct OpenAIDelta {
-                                        #[serde(default)]
-                                        content: Option<String>,
-                                        #[serde(default)]
-                                        tool_calls: Option<Vec<ToolCallDelta>>,
-                                    }
-
-                                    #[derive(Debug, Deserialize, Default)]
-                                    struct ToolCallDelta {
-                                        #[serde(rename = "type")]
-                                        _kind: Option<String>,
-                                        #[serde(default)]
-                                        index: Option<usize>,
-                                        #[serde(default)]
-                                        function: Option<FunctionDelta>,
-                                    }
-                                    #[allow(dead_code)]
-                                    #[derive(Debug, Deserialize, Default)]
-                                    struct FunctionDelta {
-                                        #[serde(default)]
-                                        name: Option<String>,
-                                        #[serde(default)]
-                                        arguments: Option<String>,
-                                    }
-
-                                    // parse chunk:
-                                    if let Ok(OpenAIAiChunk { choices }) =
-                                        json::from_str::<OpenAIAiChunk>(json_data)
-                                            .map_err(Error::from)
-                                    {
-                                        for choice in choices {
-                                            // text:
-                                            if let Some(content) = choice.delta.content {
-                                                text.push_str(&content);
-                                            }
-
-                                            // tool calls:
-                                            if let Some(tool_calls) = choice.delta.tool_calls {
-                                                for tool_call in tool_calls {
-                                                    if let (Some(index), Some(function)) =
-                                                        (tool_call.index, tool_call.function)
-                                                    {
-                                                        let tool =
-                                                            tool_buffers.entry(index).or_default();
-
-                                                        if let Some(name) = function.name {
-                                                            tool.0 = name;
-                                                        }
-                                                        if let Some(arguments) = &function.arguments
-                                                        {
-                                                            tool.1.push_str(arguments);
-                                                        }
-                                                    }
+                                    if let Some(tool_calls) = choice.delta.tool_calls {
+                                        for tc in tool_calls {
+                                            if let (Some(idx), Some(fn_delta)) =
+                                                (tc.index, tc.function)
+                                            {
+                                                let entry = tool_buffers.entry(idx).or_default();
+                                                if let Some(name) = fn_delta.name {
+                                                    entry.0 = name;
+                                                }
+                                                if let Some(args) = fn_delta.arguments {
+                                                    entry.1.push_str(&args);
                                                 }
                                             }
-
-                                            // send tool calls to receiver:
-                                            tool_buffers.retain(|_index, (name, args)| {
-                                                if json::from_str::<JsonValue>(&args).is_ok() {
-                                                    tx.send(Ok(AiChunk::Tool {
-                                                        name: name.clone(),
-                                                        json_str: args.clone(),
-                                                    }))
-                                                    .ok();
-                                                    false
-                                                } else {
-                                                    true
-                                                }
-                                            })
                                         }
                                     }
-                                }
-                                // Anthropic API standart:
-                                else {
-                                    #[derive(Debug, Deserialize)]
-                                    struct AnthropicEvent {
-                                        #[serde(rename = "type")]
-                                        kind: String,
-                                        #[serde(default)]
-                                        index: Option<usize>,
-                                        delta: Option<AnthropicDelta>,
-                                        content_block: Option<ContentBlock>,
-                                    }
-
-                                    #[derive(Debug, Deserialize)]
-                                    struct AnthropicDelta {
-                                        #[serde(rename = "type")]
-                                        kind: String,
-                                        text: Option<String>,
-                                        #[serde(rename = "partial_json")]
-                                        partial_json: Option<String>,
-                                    }
-
-                                    #[derive(Debug, Deserialize)]
-                                    struct ContentBlock {
-                                        #[serde(rename = "type")]
-                                        kind: String,
-                                        name: String,
-                                    }
-
-                                    // parsing event:
-                                    if let Ok(event) = json::from_str::<AnthropicEvent>(json_data) {
-                                        match event.kind.as_str() {
-                                            "content_block_delta" => {
-                                                let index = event.index.unwrap_or(0);
-                                                let tool = tool_buffers.entry(index).or_default();
-
-                                                if let Some(delta) = event.delta {
-                                                    match delta.kind.as_str() {
-                                                        "text_delta" => {
-                                                            if let Some(content) = delta.text {
-                                                                text.push_str(&content);
-                                                            }
-                                                        }
-                                                        "input_json_delta" => {
-                                                            if let Some(partial_json) =
-                                                                delta.partial_json
-                                                            {
-                                                                tool.1.push_str(&partial_json);
-                                                            }
-                                                        }
-                                                        _ => {}
-                                                    }
-                                                }
-                                            }
-                                            "content_block_start" => {
-                                                if let Some(block) = event.content_block
-                                                    && let Some(index) = event.index
-                                                    && block.kind == "tool_use"
-                                                    && !block.name.is_empty()
-                                                {
-                                                    let tool =
-                                                        tool_buffers.entry(index).or_default();
-
-                                                    tool.0 = block.name;
-                                                }
-                                            }
-                                            _ => {}
-                                        }
-
-                                        // send tool calls to receiver:
-                                        tool_buffers.retain(|_index, (name, args)| {
-                                            if json::from_str::<JsonValue>(args).is_ok() {
-                                                tx.send(Ok(AiChunk::Tool {
-                                                    name: name.clone(),
-                                                    json_str: args.clone(),
-                                                }))
-                                                .ok();
-                                                false
-                                            } else {
-                                                true
-                                            }
-                                        });
-                                    }
-                                }
-
-                                // send text chunk to receiver:
-                                if !text.is_empty() {
-                                    tx.send(Ok(AiChunk::Text { text })).ok();
                                 }
                             }
+                            ResponseChunk::Anthropic(anth) => {
+                                if let Some(delta) = anth.delta {
+                                    if let Some(t) = delta.text {
+                                        text_output.push_str(&t);
+                                    }
+                                    if let Some(pj) = delta.partial_json {
+                                        let idx = anth.index.unwrap_or(0);
+                                        tool_buffers.entry(idx).or_default().1.push_str(&pj);
+                                    }
+                                }
+                                if let Some(block) = anth.content_block
+                                    && block.kind == "tool_use"
+                                {
+                                    let idx = anth.index.unwrap_or(0);
+                                    tool_buffers.entry(idx).or_default().0 = block.name;
+                                }
+                            }
+                            ResponseChunk::Google(google) => {
+                                for cand in google.candidates {
+                                    if let Some(content) = cand.content {
+                                        for part in content.parts {
+                                            match part {
+                                                GeminiPart::Text { text } => {
+                                                    text_output.push_str(&text)
+                                                }
+                                                GeminiPart::FunctionCall { function_call } => {
+                                                    tx.send(Ok(AiChunk::Tool {
+                                                        name: function_call["name"]
+                                                            .as_str()
+                                                            .unwrap_or("")
+                                                            .to_string(),
+                                                        json_str: function_call["args"].to_string(),
+                                                    }))
+                                                    .ok();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            ResponseChunk::Error(err) => {
+                                tx.send(Err(
+                                    Error::ResponseError(ResponseError { error: err }).into()
+                                ))
+                                .ok();
+                                return;
+                            }
                         }
+
+                        if !text_output.is_empty() {
+                            tx.send(Ok(AiChunk::Text { text: text_output })).ok();
+                        }
+
+                        tool_buffers.retain(|_, (name, args)| {
+                            if json::from_str::<JsonValue>(args).is_ok() {
+                                tx.send(Ok(AiChunk::Tool {
+                                    name: name.clone(),
+                                    json_str: args.clone(),
+                                }))
+                                .ok();
+                                false
+                            } else {
+                                true
+                            }
+                        });
                     }
+                    Ok(None) => break,
                     Err(e) => {
                         tx.send(Err(e.into())).ok();
                         break;
@@ -686,7 +539,7 @@ impl Completions {
             }
         });
 
-        Ok(Stream { rx })
+        Ok(AiStream { rx })
     }
 }
 
@@ -711,11 +564,11 @@ impl TryFrom<AiOptions> for Completions {
 
         // set default server host:
         if let Some(host) = ops.server.as_ref() {
-            this.set_server(host.to_owned());
+            this = this.host(host.to_owned());
         }
         // set proxy options:
         if let Some(proxy) = ops.proxy.as_ref() {
-            this.set_proxy(Proxy::all(proxy.to_owned())?);
+            this = this.proxy(Proxy::all(proxy.to_owned())?);
         }
 
         Ok(this)

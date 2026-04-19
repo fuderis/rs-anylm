@@ -2,7 +2,7 @@ pub mod kind;
 pub use kind::ApiKind;
 
 pub mod completions;
-pub use completions::{AiChunk, Completions, Stream};
+pub use completions::{AiChunk, AiStream, Completions};
 
 pub mod embeddings;
 pub use embeddings::{Embedding, Embeddings, EmbeddingsData, Usage};

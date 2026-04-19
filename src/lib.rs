@@ -10,10 +10,12 @@ pub mod image;
 pub mod options;
 pub use options::AiOptions;
 
+pub mod chunk;
+
 pub mod api;
 pub use api::{
-    AiChunk, ApiKind, Completions, Content, Embedding, Embeddings, EmbeddingsData, Message, Role,
-    Schema, SchemaKind, Stream, Tool, Usage,
+    AiChunk, AiStream, ApiKind, Completions, Content, Embedding, Embeddings, EmbeddingsData,
+    Message, Role, Schema, SchemaKind, Tool, Usage,
 };
 
 pub use bytes::{self, Bytes};

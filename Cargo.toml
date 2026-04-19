@@ -1,6 +1,6 @@
 [package]
 name = "anylm"
-version = "0.1.12"
+version = "0.1.13"
 description = "The universal API for all AI services that you know"
 keywords = ["lm", "api", "ai", "llm", "slm"]
 categories = ["development-tools", "rust-patterns"]
@@ -11,6 +11,8 @@ readme = "README.md"
 edition = "2024"
 
 [dependencies]
+# atoman = { version = "0.2.17", features = ["stream"] }
+atoman = { path = "../atoman", features = ["stream"] }
 base64 = "0.22.1"
 bytes = "1.11.1"
 futures = "0.3.31"

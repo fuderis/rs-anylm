@@ -7,7 +7,9 @@ async fn main() -> Result<()> {
     // send request:
     let mut response = Completions::lmstudio("", "qwen/qwen3-vl-4b")
         .host("http://localhost:1234")
-        .user_message(vec!["Hello, how are you doing?".into()])
+        .user_message(vec![
+            "Write a detailed article about the Rust programming language.".into(),
+        ])
         .send()
         .await?;
 

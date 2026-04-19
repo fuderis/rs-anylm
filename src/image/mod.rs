@@ -34,7 +34,7 @@ pub fn read(file_path: impl AsRef<Path>) -> Result<String> {
 
     // encoding into base64:
     let encoded = engine::general_purpose::STANDARD.encode(&file_content);
-    let base64_url = fmt!("data:{};base64,{}", mime_type, encoded);
+    let base64_url = str!("data:{};base64,{}", mime_type, encoded);
 
     Ok(base64_url)
 }
