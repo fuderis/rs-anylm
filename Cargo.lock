@@ -45,7 +45,9 @@ dependencies = [
 
 [[package]]
 name = "atoman"
-version = "0.2.17"
+version = "0.2.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32c753643d20085a0bdec9ab608d4790fe00621f211e8fbc6a8606ddacd9f920"
 dependencies = [
  "arc-swap",
  "bytes",
