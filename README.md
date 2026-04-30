@@ -6,7 +6,7 @@
 [crates-io]: https://img.shields.io/badge/crates.io-fc8d62?style=for-the-badge&labelColor=555555&logo=rust
 [docs-rs]: https://img.shields.io/badge/docs.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs
 
-# AnyLM - Universal API for Every AI
+# AnyLM: Universal API for Every AI
 
 **Sick of juggling separate APIs for each AI model—wrestling with their quirky syntax and endless docs?**<br>
 
@@ -225,16 +225,9 @@ async fn main() -> Result<()> {
 
 > And etc., it all has the same logic..
 
-## License & Credits:
+## License & Feedback:
 
-* **License**: Distributed under the [*MIT*](https://github.com/fuderis/anylm-rs/blob/main/LICENSE.md) license.
-* **Contacts**:
-  [*GitHub*](https://github.com/fuderis),
-  [*Behance*](https://behance.net/fuderis),
-  [*Telegram*](https://t.me/fuderis),
-  [*Telegram Channel*](https://t.me/fuderis_club),
-  [*VKontakte*](https://vk.com/fuderis).
-* **Donate**: `TON: UQBq2GVLt_nu6bF8ku0RneWDr_B0AdrBMXVPcRrNmTU6mz65`
+> This library distributed under the [MIT](https://github.com/fuderis/anylm-rs/blob/main/LICENSE.md) license.
 
-> Thank you for your support! Don't forget to check out my other projects as well. [*GitHub*](https://github.com/fuderis)<br>
-**P.s.**: This software is actively evolving, and your suggestions and feedback are always welcome!
+You can contact me via [GitHub](https://github.com/fuderis) or send a message to my [E-Mail](mailto:synapdrake@ya.ru).
+This library is actively evolving, and your suggestions and feedback are always welcome!

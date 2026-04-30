@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 pub(crate) use crate::error::Error;
-pub(crate) use macron::prelude::*;
+pub(crate) use macron::*;
 
 /// The dynamic error type
 pub(crate) type DynError = Box<dyn std::error::Error + Send + Sync + 'static>;
