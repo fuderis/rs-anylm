@@ -329,10 +329,9 @@ impl Completions {
 
         // serialize & clean data:
         let mut data = json::to_value(&self).map_err(Error::from)?;
-        let data = data.as_object_mut().unwrap();
-
-        data.remove("tokens_count");
-        if let Some(messages) = data.get_mut("messages").and_then(|v| v.as_array_mut()) {
+        let data_obj = data.as_object_mut().unwrap();
+        data_obj.remove("tokens_count");
+        if let Some(messages) = data_obj.get_mut("messages").and_then(|v| v.as_array_mut()) {
             for msg in messages {
                 if let Some(msg_obj) = msg.as_object_mut() {
                     msg_obj.remove("tokens_count");
@@ -340,45 +339,65 @@ impl Completions {
                 }
             }
         }
-        data.insert(str!("stream"), JsonValue::Bool(true));
+        data_obj.insert(str!("stream"), JsonValue::Bool(true));
 
-        // JSON-schema & tool calls:
-        if let Some(mut schema) = self.schema.take() {
-            data.remove("schema");
+        // prepare JSON-schema:
+        if let Some(schema) = self.schema.take() {
+            data_obj.remove("schema");
+
             if self.api_kind.is_openai() {
-                data.insert(
-                    str!("response_format"),
-                    json!({
-                        "type": "json_schema",
-                        "json_schema": { "name": "response", "schema": schema, "strict": true }
-                    }),
-                );
-            } else if !self.api_kind.is_google() {
-                schema.additional_properties = Some(false);
-                data.insert(
-                    str!("output_config"),
-                    json!({
-                        "format": { "type": "json_schema", "schema": schema }
-                    }),
-                );
+                data_obj.insert(str!("response_format"), schema.to_openai_format()?);
+            } else if self.api_kind.is_google() {
+                let google_config = schema.to_google_format()?;
+
+                if let Some(config) = data_obj
+                    .get_mut("generationConfig")
+                    .and_then(|c| c.as_object_mut())
+                {
+                    if let Some(obj) = google_config.as_object() {
+                        for (k, v) in obj {
+                            config.insert(k.clone(), v.clone());
+                        }
+                    }
+                } else {
+                    data_obj.insert(str!("generationConfig"), google_config);
+                }
+            } else {
+                data_obj.insert(str!("output_config"), schema.to_anthropic_format()?);
             }
         }
 
+        // prepare tools schemes:
         if !self.tools.is_empty() {
-            let mut tools_json = vec![];
+            let mut tools_json = Vec::new();
+
             for tool in &self.tools {
-                if self.api_kind.is_openai() {
-                    tools_json.push(json!({ "type": "function", "function": tool }));
-                } else if !self.api_kind.is_google() {
-                    let mut tool_json = json::to_value(tool).unwrap();
-                    let tool_obj = tool_json.as_object_mut().unwrap();
-                    let params = tool_obj.get_mut("parameters").cloned().unwrap();
-                    tool_obj.remove("parameters");
-                    tool_obj.insert("input_schema".to_string(), params);
-                    tools_json.push(tool_json);
+                let formatted_tool = if self.api_kind.is_openai() {
+                    tool.to_openai_format()
+                } else if self.api_kind.is_google() {
+                    tool.to_google_format()
+                } else {
+                    tool.to_anthropic_format()
+                }?;
+
+                if self.api_kind.is_google() {
+                    if tools_json.is_empty() {
+                        tools_json.push(formatted_tool);
+                    } else if let Some(first_tool) = tools_json.get_mut(0) {
+                        if let Some(decls) = first_tool
+                            .get_mut("function_declarations")
+                            .and_then(|d| d.as_array_mut())
+                        {
+                            let tool_val = tool.to_json_tool()?;
+                            decls.push(tool_val);
+                        }
+                    }
+                } else {
+                    tools_json.push(formatted_tool);
                 }
             }
-            data.insert(str!("tools"), JsonValue::Array(tools_json));
+
+            data_obj.insert("tools".to_string(), JsonValue::Array(tools_json));
         }
 
         // create client & configure proxy:
@@ -395,7 +414,7 @@ impl Completions {
             .post(&url)
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::ACCEPT, "text/event-stream")
-            .json(&data);
+            .json(&data_obj);
 
         // set api key:
         if self.api_kind.is_google() {
@@ -411,7 +430,7 @@ impl Completions {
         }
 
         if self.api_kind.is_google() {
-            let messages = data.remove("messages").unwrap_or(json!([]));
+            let messages = data_obj.remove("messages").unwrap_or(json!([]));
             let contents: Vec<JsonValue> = messages
                 .as_array()
                 .unwrap()
@@ -423,8 +442,8 @@ impl Completions {
                     })
                 })
                 .collect();
-            data.insert(str!("contents"), json!(contents));
-            data.remove("model");
+            data_obj.insert(str!("contents"), json!(contents));
+            data_obj.remove("model");
         }
 
         // send & spawn reader:

@@ -17,12 +17,10 @@ async fn main() -> Result<()> {
     let mut response = Completions::cerebras(api_key, "llama3.1-8b")
         .proxy(Proxy::all("socks5://127.0.0.1:1080")?)
         .user_message(vec!["What's the weather like in London?".into()])
-        .tool(Tool::new(
-            "weather",
-            "Search weather by location",
-            Schema::object("Location data")
+        .tool(
+            Tool::new("weather", "Search weather by location")
                 .required_property("location", Schema::string("The location")),
-        ))
+        )
         .send()
         .await?;
 

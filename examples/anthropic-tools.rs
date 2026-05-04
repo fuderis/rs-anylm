@@ -17,12 +17,10 @@ async fn main() -> Result<()> {
     let mut response = Completions::anthropic(api_key, "claude-opus-4-6")
         .proxy(Proxy::all("socks5://127.0.0.1:1080")?)
         .user_message(vec!["What's the weather like in London?".into()])
-        .tool(Tool::new(
-            "weather",
-            "Search weather by location",
-            Schema::object("Location data")
+        .tool(
+            Tool::new("weather", "Search weather by location")
                 .required_property("location", Schema::string("The location")),
-        ))
+        )
         .send()
         .await?;
 
@@ -45,7 +43,7 @@ async fn main() -> Result<()> {
         match name.as_ref() {
             "weather" => {
                 let location: LocationData = serde_json::from_str(&json_str)?;
-                println!("{location:#?}");
+                println!("Tool call: {location:#?}");
             }
             _ => {}
         }

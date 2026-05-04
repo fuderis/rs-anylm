@@ -47,6 +47,8 @@ pub struct Schema {
     /// The required object properties
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<HashSet<String>>,
+    #[serde(default)]
+    pub optional: bool,
     #[serde(rename = "additionalProperties")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_properties: Option<bool>,
@@ -101,132 +103,195 @@ impl Schema {
     }
 
     /// Sets schema description
-    pub fn set_description(&mut self, descr: impl Into<String>) {
-        self.description.replace(descr.into());
-    }
-    /// Sets schema description
     pub fn description(mut self, descr: impl Into<String>) -> Self {
-        self.set_description(descr);
+        self.description.replace(descr.into());
         self
     }
 
-    /// Adds string value variants
-    pub fn set_variants(&mut self, vars: HashSet<String>) {
-        self.variants.get_or_insert_default().extend(vars);
-    }
     /// Adds string value variants
     pub fn variants(mut self, vars: HashSet<String>) -> Self {
-        self.set_variants(vars);
+        self.variants.get_or_insert_default().extend(vars);
         self
     }
 
-    /// Adds string value variant
-    pub fn set_variant(&mut self, var: impl Into<String>) {
-        self.variants.get_or_insert_default().insert(var.into());
-    }
     /// Adds string value variant
     pub fn variant(mut self, var: impl Into<String>) -> Self {
-        self.set_variant(var);
+        self.variants.get_or_insert_default().insert(var.into());
         self
     }
 
-    /// Sets the minimum number value
-    pub fn set_minimum(&mut self, min: f64) {
-        self.minimum.replace(min);
-    }
     /// Sets the minimum number value
     pub fn minimum(mut self, min: f64) -> Self {
-        self.set_minimum(min);
+        self.minimum.replace(min);
         self
     }
 
-    /// Sets the maximum number value
-    pub fn set_maximum(&mut self, max: f64) {
-        self.maximum.replace(max);
-    }
     /// Sets the maximum number value
     pub fn maximum(mut self, max: f64) -> Self {
-        self.set_maximum(max);
+        self.maximum.replace(max);
         self
     }
 
     /// Sets the array items schema
-    pub fn set_items(&mut self, schema: Schema) {
-        self.items.replace(Box::new(schema));
-    }
-    /// Sets the array items schema
     pub fn items(mut self, schema: Schema) -> Self {
-        self.set_items(schema);
+        self.items.replace(Box::new(schema));
         self
     }
 
     /// Adds the object properties schema
-    pub fn set_properties(&mut self, props: HashMap<impl Into<String>, Box<Schema>>) {
+    pub fn properties(mut self, props: HashMap<impl Into<String>, Box<Schema>>) -> Self {
         self.properties
             .get_or_insert_default()
             .extend(props.into_iter().map(|(k, v)| (k.into(), v)));
-    }
-    /// Adds the object properties schema
-    pub fn properties(mut self, props: HashMap<impl Into<String>, Box<Schema>>) -> Self {
-        self.set_properties(props);
         self
     }
 
     /// Adds the object property schema
-    pub fn set_property(&mut self, name: impl Into<String>, schema: Schema, required: bool) {
+    pub fn property(mut self, name: impl Into<String>, schema: Schema, required: bool) -> Self {
         let name = name.into();
         let reqs = self.required.get_or_insert_default();
 
         if required {
             reqs.insert(name.clone());
         }
+
         self.properties
             .get_or_insert_default()
             .insert(name, Box::new(schema));
-    }
-    /// Adds the object property schema
-    pub fn property(mut self, name: impl Into<String>, schema: Schema, required: bool) -> Self {
-        self.set_property(name, schema, required);
         self
     }
 
-    /// Adds the required property schema
-    pub fn set_required_property(&mut self, name: impl Into<String>, schema: Schema) {
-        self.set_property(name, schema, true);
-    }
     /// Adds the required property schema
     pub fn required_property(self, name: impl Into<String>, schema: Schema) -> Self {
         self.property(name, schema, true)
     }
 
     /// Adds the optional property schema
-    pub fn set_optional_property(&mut self, name: impl Into<String>, schema: Schema) {
-        self.set_property(name, schema, false);
-    }
-    /// Adds the optional property schema
     pub fn optional_property(self, name: impl Into<String>, schema: Schema) -> Self {
         self.property(name, schema, false)
     }
 
     /// Adds the required object properties
-    pub fn set_required(&mut self, reqs: Vec<impl Into<String>>) {
+    pub fn required(mut self, reqs: Vec<impl Into<String>>) -> Self {
         self.required
             .get_or_insert_default()
             .extend(reqs.into_iter().map(Into::into));
-    }
-    /// Adds the required object properties
-    pub fn required(mut self, reqs: Vec<impl Into<String>>) -> Self {
-        self.set_required(reqs);
         self
     }
 
     /// Adds the required object property
-    pub fn set_require(&mut self, name: impl Into<String>) {
+    pub fn add_required(mut self, name: impl Into<String>) -> Self {
         self.required.get_or_insert_default().insert(name.into());
-    }
-    /// Adds the required object property
-    pub fn require(mut self, name: impl Into<String>) -> Self {
-        self.set_require(name);
         self
+    }
+}
+
+impl Schema {
+    /// Converts into `OpenAI` format
+    pub fn to_openai_format(&self) -> Result<JsonValue> {
+        let mut schema_json = self.to_json_schema()?;
+
+        // OpenAI Strict requires `additionalProperties: false` at all levels of the object:
+        if let Some(obj) = schema_json.as_object_mut() {
+            if obj.get("type").and_then(|t| t.as_str()) == Some("object") {
+                obj.insert("additionalProperties".to_string(), json!(false));
+            }
+        }
+
+        Ok(json!({
+            "type": "json_schema",
+            "json_schema": {
+                "name": "response",
+                "schema": schema_json,
+                "strict": true
+            }
+        }))
+    }
+
+    /// Converts into `Anthropic` (and others) format (output_config)
+    pub fn to_anthropic_format(&self) -> Result<JsonValue> {
+        let mut schema_json = self.to_json_schema()?;
+
+        // for most APIs, it is also better to explicitly prohibit unnecessary properties:
+        if let Some(obj) = schema_json.as_object_mut() {
+            obj.insert("additionalProperties".to_string(), json!(false));
+        }
+
+        Ok(json!({
+            "format": {
+                "type": "json_schema",
+                "schema": schema_json
+            }
+        }))
+    }
+
+    /// Converts into `Google` format
+    pub fn to_google_format(&self) -> Result<JsonValue> {
+        let schema_json = self.to_json_schema()?;
+
+        // Google requires a MIME type to activate JSON mode:
+        Ok(json!({
+            "response_mime_type": "application/json",
+            "response_schema": schema_json
+        }))
+    }
+}
+
+impl Schema {
+    /// Converts into valid JSON-format
+    pub fn to_json_schema(&self) -> Result<JsonValue> {
+        let mut v = serde_json::to_value(self)?;
+        Self::sanitize_json_schema(&mut v);
+        Ok(v)
+    }
+
+    /// Recursively purging the `optional` field and filling in the `required` field
+    pub fn sanitize_json_schema(value: &mut JsonValue) {
+        if let Some(obj) = value.as_object_mut() {
+            // handling nesting in items (for arrays):
+            if let Some(items) = obj.get_mut("items") {
+                Self::sanitize_json_schema(items);
+            }
+
+            // extracting the required list or creating a new one:
+            let mut required_set: HashSet<String> = obj
+                .get("required")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            // processing object properties:
+            if let Some(props) = obj.get_mut("properties").and_then(|p| p.as_object_mut()) {
+                for (name, prop) in props.iter_mut() {
+                    // RECURSION: cleaning nested objects before looking at their flag:
+                    Self::sanitize_json_schema(prop);
+
+                    if let Some(prop_obj) = prop.as_object_mut() {
+                        // removing the optional flag:
+                        let is_optional = prop_obj
+                            .remove("optional")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+
+                        if !is_optional {
+                            required_set.insert(name.clone());
+                        }
+                    }
+                }
+
+                // write the updated required back to the object:
+                if !required_set.is_empty() {
+                    let mut final_required: Vec<_> = required_set.into_iter().collect();
+                    final_required.sort();
+                    obj.insert("required".to_string(), serde_json::json!(final_required));
+                } else {
+                    obj.remove("required");
+                }
+            }
+        }
     }
 }
