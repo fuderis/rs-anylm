@@ -60,4 +60,15 @@ impl Message {
     pub fn assistant(content: Vec<Content>) -> Self {
         Self::new(Role::Assistant, content)
     }
+
+    /// Maps the message content
+    pub fn map(&mut self, f: impl FnOnce(&mut Vec<Content>)) {
+        f(&mut self.content);
+        self.update_tokens();
+    }
+
+    /// Updates the number of used tokens
+    pub fn update_tokens(&mut self) {
+        self.tokens_count = Self::count_tokens(&self.content);
+    }
 }
