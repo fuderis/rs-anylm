@@ -9,12 +9,19 @@ use tokio::sync::mpsc;
 #[derive(Debug)]
 pub struct AiStream {
     rx: mpsc::UnboundedReceiver<Result<AiChunk>>,
+    handle: tokio::task::JoinHandle<()>,
 }
 
 impl AiStream {
     /// Read a next completions response chunk
     pub async fn next(&mut self) -> Option<Result<AiChunk>> {
         self.rx.recv().await
+    }
+}
+
+impl Drop for AiStream {
+    fn drop(&mut self) {
+        self.handle.abort();
     }
 }
 
@@ -455,8 +462,12 @@ impl Completions {
         let (tx, rx) = mpsc::unbounded_channel::<Result<AiChunk>>();
         let mut tool_buffers = HashMap::<usize, (String, String)>::new();
 
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             loop {
+                if tx.is_closed() {
+                    break;
+                }
+
                 match reader.read().await {
                     Ok(Some(chunk)) => {
                         let mut text_output = String::new();
@@ -534,7 +545,9 @@ impl Completions {
                         }
 
                         if !text_output.is_empty() {
-                            tx.send(Ok(AiChunk::Text { text: text_output })).ok();
+                            if tx.send(Ok(AiChunk::Text { text: text_output })).is_err() {
+                                break;
+                            }
                         }
 
                         tool_buffers.retain(|_, (name, args)| {
@@ -543,8 +556,8 @@ impl Completions {
                                     name: name.clone(),
                                     json_str: args.clone(),
                                 }))
-                                .ok();
-                                false
+                                .is_ok()
+                                    == false
                             } else {
                                 true
                             }
@@ -559,7 +572,7 @@ impl Completions {
             }
         });
 
-        Ok(AiStream { rx })
+        Ok(AiStream { rx, handle })
     }
 }
 
