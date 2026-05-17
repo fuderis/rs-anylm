@@ -13,6 +13,38 @@ pub enum SchemaKind {
     Null,
 }
 
+impl SchemaKind {
+    /// Returns true if this is `object` schema
+    pub fn is_object(&self) -> bool {
+        matches!(self, Self::Object)
+    }
+
+    /// Returns true if this is `array` schema
+    pub fn is_array(&self) -> bool {
+        matches!(self, Self::Array)
+    }
+
+    /// Returns true if this is `string` schema
+    pub fn is_string(&self) -> bool {
+        matches!(self, Self::String)
+    }
+
+    /// Returns true if this is `integer` schema
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Self::Integer)
+    }
+
+    /// Returns true if this is `boolean` schema
+    pub fn is_boolean(&self) -> bool {
+        matches!(self, Self::Boolean)
+    }
+
+    /// Returns true if this is `null` schema
+    pub fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
+}
+
 impl Default for SchemaKind {
     fn default() -> Self {
         Self::Object
@@ -241,6 +273,7 @@ impl Schema {
     /// Converts into valid JSON-format
     pub fn to_json_schema(&self) -> Result<JsonValue> {
         let mut v = serde_json::to_value(self)?;
+
         Self::sanitize_json_schema(&mut v);
         Ok(v)
     }

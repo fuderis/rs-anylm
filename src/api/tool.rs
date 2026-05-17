@@ -7,10 +7,17 @@ pub struct Tool {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
+    #[serde(default = "Tool::default_schema")]
     parameters: Schema,
+    #[serde(default)]
+    properties: HashMap<String, Schema>,
 }
 
 impl Tool {
+    fn default_schema() -> Schema {
+        Schema::object("")
+    }
+
     /// Creates a new tool call
     pub fn new(name: impl Into<String>, descr: impl Into<String>) -> Self {
         Self {
@@ -20,12 +27,13 @@ impl Tool {
                 _ => None,
             },
             parameters: Schema::object(""),
+            properties: HashMap::new(),
         }
     }
 
     /// Adds an argument
-    pub fn property(mut self, name: impl Into<String>, schema: Schema, optional: bool) -> Self {
-        self.parameters = self.parameters.property(name, schema, optional);
+    pub fn property(mut self, name: impl Into<String>, schema: Schema, required: bool) -> Self {
+        self.parameters = self.parameters.property(name, schema, required);
         self
     }
 
@@ -46,6 +54,7 @@ impl Tool {
     /// Converts into `OpenAI` format: {"type": "function", "function": {...}}
     pub fn to_openai_format(&self) -> Result<JsonValue> {
         let tool_json = self.to_json_tool()?;
+
         Ok(json!({
             "type": "function",
             "function": tool_json
@@ -68,6 +77,7 @@ impl Tool {
     /// Converts into `Google` format: {"function_declarations": [...]}
     pub fn to_google_format(&self) -> Result<JsonValue> {
         let tool_json = self.to_json_tool()?;
+
         Ok(json!({
             "function_declarations": [ tool_json ]
         }))
@@ -77,12 +87,31 @@ impl Tool {
 impl Tool {
     /// Converts into valid JSON-format
     pub fn to_json_tool(&self) -> Result<JsonValue> {
-        let mut v = serde_json::to_value(self)?;
+        let mut this = self.clone();
 
+        // push tool properties into schema:
+        for (name, schema) in &self.properties {
+            this = this.property(name, schema.clone(), !schema.optional);
+        }
+        this.properties.clear();
+
+        // fix schema properties format:
+        if this
+            .parameters
+            .properties
+            .as_ref()
+            .map(|props| props.is_empty())
+            .unwrap_or(true)
+        {
+            this = this.optional_property("_", Schema::null(""));
+        }
+
+        let mut v = serde_json::to_value(this)?;
         if let Some(params) = v.get_mut("parameters") {
             Schema::sanitize_json_schema(params);
         }
 
+        Schema::sanitize_json_schema(&mut v);
         Ok(v)
     }
 }
